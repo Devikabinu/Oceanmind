@@ -7,8 +7,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.api.v1.auth import router as auth_router
+from app.api.v1.biodiversity_observations import router as biodiversity_observations_router
+from app.api.v1.data_quality import router as data_quality_router
 from app.api.v1.data_sources import router as data_sources_router
 from app.api.v1.datasets import router as datasets_router
+from app.api.v1.ingestion import router as ingestion_router
+from app.api.v1.ocean_observations import router as ocean_observations_router
 from app.core.config import get_settings
 from app.core.logging import configure_logging
 from app.db.seed import seed_data_sources
@@ -64,3 +68,7 @@ def health_check() -> dict[str, str]:
 app.include_router(auth_router, prefix="/api")
 app.include_router(data_sources_router, prefix="/api")
 app.include_router(datasets_router, prefix="/api")
+app.include_router(ingestion_router, prefix="/api")
+app.include_router(ocean_observations_router, prefix="/api")
+app.include_router(biodiversity_observations_router, prefix="/api")
+app.include_router(data_quality_router, prefix="/api")

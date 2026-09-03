@@ -14,13 +14,14 @@ passlib[bcrypt]==1.7.4
 bcrypt==4.2.0
 python-multipart==0.0.9
 
-pandas==2.2.2
-numpy==1.26.4
-xarray==2024.7.0
+pandas==2.3.3
+numpy==2.5.2
+xarray==2026.7.0
 netCDF4==1.7.1.post2
 geopandas==1.0.1
 shapely==2.0.6
 requests==2.32.3
+copernicusmarine==2.4.1
 
 pytest==8.3.3
 pytest-cov==5.0.0
