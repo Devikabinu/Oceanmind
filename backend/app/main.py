@@ -6,6 +6,7 @@ from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from app.api.v1.alignment import router as alignment_router
 from app.api.v1.auth import router as auth_router
 from app.api.v1.biodiversity_observations import router as biodiversity_observations_router
 from app.api.v1.data_quality import router as data_quality_router
@@ -72,3 +73,4 @@ app.include_router(ingestion_router, prefix="/api")
 app.include_router(ocean_observations_router, prefix="/api")
 app.include_router(biodiversity_observations_router, prefix="/api")
 app.include_router(data_quality_router, prefix="/api")
+app.include_router(alignment_router, prefix="/api")

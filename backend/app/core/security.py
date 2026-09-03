@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -5,6 +6,14 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext
 
 from app.core.config import get_settings
+
+# passlib 1.7.4 (unmaintained) probes bcrypt.__about__.__version__ to detect
+# the backend version; recent bcrypt releases restructured that attribute,
+# so the probe fails and passlib logs a caught-and-handled traceback as a
+# WARNING on every process start. Hashing/verification both work correctly
+# regardless (passlib falls back to its secondary detection path) - this
+# only silences the cosmetic log noise.
+logging.getLogger("passlib").setLevel(logging.ERROR)
 
 _pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
