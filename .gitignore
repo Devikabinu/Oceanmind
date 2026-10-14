@@ -1,16 +1,85 @@
-.venv/
-.pytest_cache/
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+*.so
 
-.vscode/
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
 
-data/raw/
-processed/
+# Python packaging
+build/
+dist/
+*.egg-info/
+.eggs/
 
-*.nc
-*.zarr
-*.parquet
+# Testing / coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+.mypy_cache/
+.ruff_cache/
 
+# Jupyter
+.ipynb_checkpoints/
+
+# Environment / secrets
 .env
+.env.*
+!.env.example
+
+# IDEs / editors
+.vscode/
+.idea/
+*.code-workspace
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
 *.log
+logs/
+
+# Project-generated data
+data/cache/
+processed/cache/
+
+# Raw / large datasets
+data/raw/
+
+# Generated preprocessing outputs
+processed/cubes/
+processed/figures/
+processed/model_smoke/
+processed/model/
+processed/anomaly/
+processed/forecast/
+processed/biodiversity/
+
+# Generated Zarr datasets
+processed/*.zarr
+processed/*.zarr/
+
+# Keep project metadata/reports
+!processed/meta.json
+!processed/missing_report.json
+!processed/preprocess_report.md
+
+# Model checkpoints
+*.pt
+*.pth
+*.ckpt
+*.onnx
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo

@@ -1,36 +1,72 @@
-# oceanmind_preprocess
+# OceanMind
 
-```bash
-pip install numpy pandas xarray zarr scipy pyyaml pyarrow matplotlib torch pytest   # xesmf optional
-python -m oceanmind_preprocess build  --config config.yaml
-python -m oceanmind_preprocess latest --config config.yaml [--date 2025-06-01] [--out window.npz]
-python -m pytest tests
-```
+OceanMind is an AI-driven ocean monitoring platform for sea-surface temperature (SST) forecasting, anomaly detection, marine risk assessment, biodiversity analysis, and interactive visualization.
 
-## Expected raw layout (edit `paths` / `raw` in config.yaml)
-`<raw_dir>/<store>_final.zarr` and optional `<store>_nrt.zarr` per variable (dims time/lat/lon, names auto-detected,
-0..360 longitudes converted, a depth axis reduced to the level nearest `depth`), plus `obis/occurrences.parquet`.
-Timestamps are treated as UTC and floored to midnight; sub-daily samples are averaged.
+The project combines data ingestion, preprocessing, machine-learning forecasting, anomaly detection, risk assessment, backend APIs, and a frontend interface into a single extensible platform.
 
-## Outputs (`paths.out_dir`)
-`land_mask.npy` (True = land), `stats.json` (mean/std + clip limits, train only), `climatology.zarr`,
-`cubes/<split>.npy` (T,C,H,W float32, memory-mappable) + `_dates.npy`/`_nrt.npy`, `forecast/windows_<split>.parquet`,
-`anomaly/index_<split>.parquet`, `biodiversity/obis_monthly.{parquet,zarr}`, `meta.json`, `preprocess_report.md`.
+## Project Architecture
 
-Datasets: `from oceanmind_preprocess.datasets import ForecastDataset, AnomalyDataset`. Inference:
-`from oceanmind_preprocess import build_latest_window`.
+The system is organised into the following layers:
 
-Channel conventions: `mask_<var>` = 1 where that variable has data (observed or gap-filled) on an ocean cell, else 0 (land
-or long gap); use `land_mask.npy` / the `ocean` item to tell them apart. Land and unfilled cells are 0 after normalisation.
+1. **User & Authentication Layer**
+   - User registration and login
+   - Role-based access
+   - Profile management
 
-## SST ingestion (NOAA OISST v2.1 via ERDDAP)
-```powershell
-python download_sst.py check        # verify both endpoints, print latest FINAL / NRT dates
-python download_sst.py smoke        # 7-day verified download + preprocessing probe
-python download_sst.py historical   # FINAL history from ingest.history_start, 12-month batches, cached/resumable
-python download_sst.py nrt          # new FINAL days + refreshed preliminary NRT window; FINAL supersedes NRT
-python download_sst.py status
-```
-Region comes from `grid.*`. Raw subsets are cached in `data/raw/cache/`, composed into `data/raw/sst_final.zarr` /
-`sst_nrt.zarr`, with per-date provenance in `data/raw/sst_manifest.parquet`. The NOAA products have genuine missing
-days; they are recorded (`gap_days_in_source`) and handled by the normal gap-fill / mask logic.
+2. **Data Management Layer**
+   - SST data ingestion
+   - Oceanographic data integration
+   - Biodiversity data integration
+   - Support for external scientific data sources
+
+3. **Processing & Analytics Layer**
+   - Data cleaning
+   - Missing-data handling
+   - Feature engineering
+   - SST anomaly calculation
+   - Spatial and temporal analysis
+
+4. **AI/ML Layer**
+   - SST forecasting
+   - ConvLSTM-based spatiotemporal prediction
+   - Multi-horizon forecasting
+   - Anomaly detection
+   - Severity scoring
+
+5. **Application & Alert Layer**
+   - Risk assessment
+   - Risk-level classification
+   - Alerts and recommendations
+
+6. **Visualization Layer**
+   - Interactive maps
+   - Dashboards
+   - Forecast visualization
+   - Anomaly reports
+   - Historical trends
+
+7. **Backend & Database Layer**
+   - REST APIs
+   - Data services
+   - User management
+   - Forecast and anomaly services
+   - Report and alert services
+
+## Repository Structure
+
+```text
+Oceanmind/
+├── backend/                 # Backend APIs and services
+├── frontend/                # Frontend application
+├── oceanmind_preprocess/    # Data preprocessing pipeline
+├── oceanmind_forecast/      # Forecasting and baseline components
+├── oceanmind_model/         # ConvLSTM model and training/evaluation
+├── tests/                   # Automated tests
+├── data/
+│   └── raw/                 # Raw datasets (not tracked)
+├── processed/               # Generated datasets/results (mostly not tracked)
+├── config.yaml              # Project configuration
+├── pyproject.toml           # Python project configuration
+├── requirements.txt         # Python dependencies, if applicable
+├── .env.example             # Environment variable template
+└── README.md
