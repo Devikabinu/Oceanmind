@@ -103,3 +103,23 @@ biodiversity:
 
 report:
   enabled: true
+
+model:                                  # ConvLSTM forecaster (oceanmind_model)
+  hidden_channels: 32
+  kernel_size: 3
+  layers: 2
+  head_channels: 32
+  residual: true                        # predict the change from the last observed (normalised) SST map
+
+training:
+  batch_size: 2
+  epochs: 30
+  learning_rate: 0.001
+  weight_decay: 0.0001
+  patience: 5                           # early stopping on VALIDATION loss
+  num_workers: 0
+  grad_clip: 1.0
+  loss: mse                             # mse | huber
+  huber_delta: 1.0
+  device: auto                          # auto | cpu | cuda
+  seed: 0
