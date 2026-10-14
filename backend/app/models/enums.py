@@ -23,3 +23,23 @@ class IngestionJobStatus(str, enum.Enum):
 class DatasetKind(str, enum.Enum):
     ENVIRONMENTAL = "ENVIRONMENTAL"
     BIODIVERSITY = "BIODIVERSITY"
+
+
+class RiskLevel(str, enum.Enum):
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+    CRITICAL = "CRITICAL"
+
+
+class AlertSeverity(str, enum.Enum):
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+    CRITICAL = "CRITICAL"
+
+
+class AlertStatus(str, enum.Enum):
+    NEW = "NEW"
+    ACKNOWLEDGED = "ACKNOWLEDGED"
+    RESOLVED = "RESOLVED"

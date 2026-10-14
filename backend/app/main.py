@@ -6,14 +6,18 @@ from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from app.api.v1.alerts import router as alerts_router
 from app.api.v1.alignment import router as alignment_router
+from app.api.v1.anomaly import router as anomaly_router
 from app.api.v1.auth import router as auth_router
 from app.api.v1.biodiversity_observations import router as biodiversity_observations_router
 from app.api.v1.data_quality import router as data_quality_router
 from app.api.v1.data_sources import router as data_sources_router
 from app.api.v1.datasets import router as datasets_router
+from app.api.v1.forecast import router as forecast_router
 from app.api.v1.ingestion import router as ingestion_router
 from app.api.v1.ocean_observations import router as ocean_observations_router
+from app.api.v1.risk import router as risk_router
 from app.core.config import get_settings
 from app.core.logging import configure_logging
 from app.db.seed import seed_data_sources
@@ -74,3 +78,7 @@ app.include_router(ocean_observations_router, prefix="/api")
 app.include_router(biodiversity_observations_router, prefix="/api")
 app.include_router(data_quality_router, prefix="/api")
 app.include_router(alignment_router, prefix="/api")
+app.include_router(forecast_router, prefix="/api")
+app.include_router(anomaly_router, prefix="/api")
+app.include_router(risk_router, prefix="/api")
+app.include_router(alerts_router, prefix="/api")

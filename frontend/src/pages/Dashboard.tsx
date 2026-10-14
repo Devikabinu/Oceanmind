@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import ModelOutputsSummary from "../components/ModelOutputsSummary";
 import StatCard from "../components/StatCard";
 import { listDatasets } from "../api/dataSources";
 import { listBiodiversityObservations, listIngestionJobs, listOceanObservations } from "../api/ingestion";
@@ -50,7 +51,7 @@ export default function Dashboard() {
     <div>
       <h1 className="text-xl font-semibold text-slate-900">Dashboard</h1>
       <p className="mt-1 text-sm text-slate-500">
-        Overview of Module 1: data sources, ingested observations, and pipeline health.
+        Overview of data sources, ingested observations, pipeline health, and model outputs.
       </p>
 
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -112,6 +113,8 @@ export default function Dashboard() {
           </Link>
         </div>
       </div>
+
+      <ModelOutputsSummary />
     </div>
   );
 }

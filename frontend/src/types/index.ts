@@ -119,3 +119,60 @@ export interface BiodiversityObservation {
   max_depth: number | null;
   source_record_id: string | null;
 }
+
+export interface SSTForecast {
+  id: string;
+  dataset_id: string;
+  timestamp: string;
+  latitude: number;
+  longitude: number;
+  predicted_sst: number;
+  forecast_horizon_days: number;
+  model_version: string;
+  created_at: string;
+}
+
+export interface AnomalyDetection {
+  id: string;
+  observation_id: string;
+  timestamp: string;
+  latitude: number;
+  longitude: number;
+  anomaly_score: number;
+  is_anomaly: boolean;
+  model_version: string;
+  created_at: string;
+}
+
+export type RiskLevel = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+
+export interface EcologicalRiskScore {
+  id: string;
+  biodiversity_observation_id: string;
+  timestamp: string;
+  latitude: number;
+  longitude: number;
+  risk_score: number;
+  risk_level: RiskLevel;
+  contributing_factors: Record<string, unknown>;
+  created_at: string;
+}
+
+export type AlertSeverity = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+export type AlertStatus = "NEW" | "ACKNOWLEDGED" | "RESOLVED";
+
+export interface Alert {
+  id: string;
+  alert_type: string;
+  severity: AlertSeverity;
+  latitude: number;
+  longitude: number;
+  timestamp: string;
+  message: string;
+  status: AlertStatus;
+  related_forecast_id: string | null;
+  related_anomaly_id: string | null;
+  related_risk_id: string | null;
+  created_at: string;
+  resolved_at: string | null;
+}

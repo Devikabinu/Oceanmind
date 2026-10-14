@@ -145,7 +145,8 @@ class OBISAdapter(BaseIngestionAdapter):
                 "latitude": valid_df["decimalLatitude"].astype(float),
                 "longitude": valid_df["decimalLongitude"].astype(float),
                 "scientific_name": valid_df["scientificName"],
-                "occurrence_status": valid_df["occurrenceStatus"],
+                # Some providers put long values (e.g. taxon LSID lists) here; column is varchar(50).
+                "occurrence_status": valid_df["occurrenceStatus"].astype("string").str.slice(0, 50),
                 "min_depth": pd.to_numeric(valid_df["minimumDepthInMeters"], errors="coerce"),
                 "max_depth": pd.to_numeric(valid_df["maximumDepthInMeters"], errors="coerce"),
                 "source_record_id": valid_df["id"],

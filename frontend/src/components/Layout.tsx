@@ -1,13 +1,29 @@
-import { NavLink, Outlet } from "react-router-dom";
+import { Outlet } from "react-router-dom";
+import NavMenu from "./NavMenu";
+import type { NavGroup } from "./NavMenu";
 import { useAuth } from "../contexts/AuthContext";
 
-const NAV_ITEMS = [
-  { to: "/", label: "Dashboard" },
-  { to: "/data-sources", label: "Data Sources" },
-  { to: "/datasets", label: "Datasets" },
-  { to: "/ingestion", label: "Ingestion" },
-  { to: "/data-quality", label: "Data Quality" },
-  { to: "/profile", label: "Profile" },
+const NAV_GROUPS: NavGroup[] = [
+  { label: "Overview", items: [{ to: "/", label: "Dashboard" }] },
+  {
+    label: "Data",
+    items: [
+      { to: "/data-sources", label: "Data Sources" },
+      { to: "/datasets", label: "Datasets" },
+      { to: "/ingestion", label: "Ingestion" },
+      { to: "/data-quality", label: "Data Quality" },
+    ],
+  },
+  {
+    label: "Intelligence",
+    items: [
+      { to: "/forecast", label: "Forecast" },
+      { to: "/anomaly", label: "Anomalies" },
+      { to: "/risk", label: "Risk" },
+      { to: "/alerts", label: "Alerts" },
+    ],
+  },
+  { label: "Account", items: [{ to: "/profile", label: "Profile" }] },
 ];
 
 export default function Layout() {
@@ -21,24 +37,7 @@ export default function Layout() {
             <span className="shrink-0 text-sm font-semibold tracking-tight text-slate-900">
               Ocean Environmental Intelligence
             </span>
-            <nav className="flex gap-1 overflow-x-auto">
-              {NAV_ITEMS.map((item) => (
-                <NavLink
-                  key={item.to}
-                  to={item.to}
-                  end={item.to === "/"}
-                  className={({ isActive }) =>
-                    `shrink-0 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-                      isActive
-                        ? "bg-slate-900 text-white"
-                        : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-                    }`
-                  }
-                >
-                  {item.label}
-                </NavLink>
-              ))}
-            </nav>
+            <NavMenu groups={NAV_GROUPS} />
           </div>
           <div className="flex items-center gap-3">
             <span className="text-sm text-slate-500">

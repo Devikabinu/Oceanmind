@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import Pagination from "../components/Pagination";
 import { listDataSources, listDatasets } from "../api/dataSources";
 import type { DataSource, Dataset } from "../types";
 
@@ -32,7 +33,6 @@ export default function Datasets() {
   }, [page, sourceFilter]);
 
   const sourceById = Object.fromEntries(sources.map((s) => [s.id, s.name]));
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
     <div>
@@ -110,27 +110,7 @@ export default function Datasets() {
         </table>
       </div>
 
-      <div className="mt-4 flex items-center justify-between text-sm text-slate-500">
-        <span>
-          Page {page} of {totalPages} ({total} total)
-        </span>
-        <div className="flex gap-2">
-          <button
-            disabled={page <= 1}
-            onClick={() => setPage((p) => p - 1)}
-            className="rounded-md border border-slate-300 px-3 py-1 disabled:opacity-40"
-          >
-            Previous
-          </button>
-          <button
-            disabled={page >= totalPages}
-            onClick={() => setPage((p) => p + 1)}
-            className="rounded-md border border-slate-300 px-3 py-1 disabled:opacity-40"
-          >
-            Next
-          </button>
-        </div>
-      </div>
+      <Pagination page={page} pageSize={PAGE_SIZE} total={total} isLoading={isLoading} onPageChange={setPage} />
     </div>
   );
 }
