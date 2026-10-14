@@ -1,0 +1,105 @@
+# OceanMind preprocessing configuration. Every tunable lives here.
+# Relative paths are resolved against the directory containing this file.
+
+paths:
+  raw_dir: data/raw                     # holds <store>_final.zarr / <store>_nrt.zarr, cache/, obis/
+  out_dir: processed
+  obis: obis/occurrences.parquet        # relative to raw_dir
+
+grid:                                   # common target grid (cell centres)
+  # Region 20-50N, 160W-120W, snapped inward to the native OISST cell centres (x.125 / x.375 ...) so the
+  # target grid IS the source grid (identity regrid, no half-cell blur, no NaN edge rows).
+  lat_min: 20.125
+  lat_max: 49.875
+  lon_min: -159.875
+  lon_max: -120.125
+  resolution: 0.25
+  regrid_method: bilinear               # bilinear | conservative (conservative needs xesmf, else falls back to bilinear)
+  min_weight: 0.5                       # NaN-aware bilinear: min fraction of valid neighbour weight to emit a value
+
+time:
+  reference_var: sst                    # defines the time axis and the land mask
+  start: "2012-01-01"                   # null = first reference date. Raw cache holds 2000+; 2012+ keeps the cube ~2.5 GB
+                                        # (disk/RAM); move earlier if you have the space.
+  end: null                             # null = last reference date
+
+raw:
+  final_pattern: "{store}_final.zarr"
+  nrt_pattern: "{store}_nrt.zarr"
+  use_nrt_in_build: false               # training data: FINAL only. Inference always uses NRT where FINAL is missing.
+  # scale/offset convert source units: value*scale + offset. log10 = mask <=0 then log10 (before regridding / daily mean).
+  variables:
+    sst: {store: sst, var: sst, scale: 1.0, offset: 0.0, log10: false}    # NOAA OISST v2.1, already degree_C
+    # Copernicus variables (added in a later step once their dataset metadata is verified):
+    # sal: {store: salinity, var: so, scale: 1.0, offset: 0.0, log10: false}
+    # chl: {store: chl,      var: chl, scale: 1.0, offset: 0.0, log10: true}
+    # oxy: {store: oxygen,   var: o2,  scale: 1.0, offset: 0.0, log10: false, depth: 0.0}
+
+missing:
+  max_gap_days: 3                       # time-interpolate NaN runs up to this length; longer runs stay NaN (+ mask channel)
+
+outliers:
+  percentiles: [0.1, 99.9]              # computed on TRAIN period ocean cells only
+  max_samples: 5000000
+  seed: 0
+
+climatology:
+  smooth_sigma_days: 7.0                # circular Gaussian smoothing over day-of-year
+  variables: [sst]                      # train-only climatologies saved for these
+
+features:
+  anomaly_vars: [sst]                   # adds <var>_anom = value - climatology
+  doy: true                             # doy_sin / doy_cos channels
+  gradient: {enabled: true, var: sst}   # sst_grad (degC per 100 km)
+  rolling: {enabled: false, vars: [sst], window: 7, min_periods: 4}   # <var>_rmean<w>, <var>_rstd<w>
+  lags: {enabled: false, vars: [sst], days: [1, 2, 3]}                # <var>_lag<k>
+
+splits:                               # inclusive dates; null start = first date, null end = latest available
+  train: [null, "2023-12-31"]
+  val: ["2024-01-01", "2024-12-31"]
+  test: ["2025-01-01", null]
+
+normalization:
+  min_std: 1.0e-6
+  check_tol: 1.0e-3                   # |mean|<tol and |std-1|<tol on normalized train
+
+forecast:
+  lookback_days: 7
+  horizons: [1, 2, 3, 4, 5, 6, 7]
+  target_channel: sst                 # normalized SST
+  channels: all                       # "all" or an explicit list of channel names
+  filter_vars: [sst]                  # missingness of these decides if a window is skipped
+  max_nan_frac: 0.2                   # skip window if mean missing-ocean fraction over input+target days exceeds this
+  stride: 1
+
+anomaly:
+  days: 1                             # 1 or 3 consecutive days stacked along channels
+  channels: [sst_anom, mask_sst]        # extend with sal, chl, oxy (+ masks) once Copernicus data is added
+  filter_vars: [sst]
+  max_nan_frac: 0.5
+  patch_size: [32, 32]                # null = full grid
+  stride: 16
+  min_ocean_frac: 0.5
+
+ingest:                                 # NOAA OISST v2.1 via ERDDAP griddap; region = grid.* above
+  cache_dir: cache                      # under paths.raw_dir
+  history_start: "2000-01-01"           # FINAL history to download for training (clipped to dataset start)
+  history_end: null                     # null = latest FINAL day on the server
+  batch_months: 12                      # months per FINAL request (~30 MB/yr for this region)
+  smoke_days: 7
+  recent_days: 14                       # NRT refresh window (preliminary values are revised)
+  http: {timeout_s: 180, max_retries: 5, backoff_s: 2.0, max_backoff_s: 60.0}
+  sst:
+    var: sst
+    expected_units: degree_C
+    valid_range: [-3.0, 40.0]
+    products:
+      final: {host: "https://upwell.pfeg.noaa.gov/erddap",    dataset: ncdcOisst21Agg_LonPM180}      # ~2 weeks behind
+      nrt:   {host: "https://coastwatch.pfeg.noaa.gov/erddap", dataset: ncdcOisst21NrtAgg_LonPM180}   # preliminary, ~1 day behind
+
+biodiversity:
+  enabled: true
+  columns: {lat: decimalLatitude, lon: decimalLongitude, date: eventDate, species: species, dataset: datasetID}
+
+report:
+  enabled: true
