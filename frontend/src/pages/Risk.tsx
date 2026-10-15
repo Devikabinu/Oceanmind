@@ -8,7 +8,7 @@ import { listRiskScores } from "../api/modelOutputs";
 import { usePagedList } from "../hooks/usePagedList";
 import type { EcologicalRiskScore } from "../types";
 import { LEVEL_TONE } from "../utils/tones";
-import { formatCoord, formatTimestamp } from "../utils/format";
+import { emptyListMessage, formatCoord, formatTimestamp } from "../utils/format";
 import { GEO_TIME_FIELDS, toQueryParams } from "../utils/filters";
 
 const PAGE_SIZE = 20;
@@ -51,7 +51,7 @@ export default function Risk() {
         rowKey={(r) => r.id}
         isLoading={list.isLoading}
         error={list.error}
-        emptyMessage="No risk scores match these filters."
+        emptyMessage={emptyListMessage("per-record risk scores", Object.keys(list.filters).length > 0, "Run: python -m app.jobs publish-outputs")}
       />
       <Pagination page={list.page} pageSize={PAGE_SIZE} total={list.total} isLoading={list.isLoading} onPageChange={list.setPage} />
     </div>

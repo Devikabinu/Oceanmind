@@ -8,6 +8,7 @@ from app.models.ecological_risk_score import EcologicalRiskScore
 from app.models.environment_biodiversity_match import EnvironmentBiodiversityMatch
 from app.models.ingestion_job import IngestionJob
 from app.models.ocean_observation import OceanObservation
+from app.models.species import Species
 from app.models.sst_forecast import SSTForecast
 from app.models.user import User
 
@@ -23,5 +24,6 @@ __all__ = [
     "IngestionJob",
     "OceanObservation",
     "SSTForecast",
+    "Species",
     "User",
 ]

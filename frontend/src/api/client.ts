@@ -4,6 +4,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
+  timeout: 60_000,
 });
 
 const TOKEN_STORAGE_KEY = "ocean_platform_token";
@@ -27,3 +28,18 @@ apiClient.interceptors.request.use((config) => {
   }
   return config;
 });
+
+// An expired/invalid token on a protected call: drop it and send the user to the login page once.
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error: unknown) => {
+    if (axios.isAxiosError(error) && error.response?.status === 401 && getStoredToken()) {
+      const url = error.config?.url ?? "";
+      if (!url.includes("/auth/login") && !url.includes("/auth/register")) {
+        setStoredToken(null);
+        if (window.location.pathname !== "/login") window.location.assign("/login?expired=1");
+      }
+    }
+    return Promise.reject(error);
+  },
+);

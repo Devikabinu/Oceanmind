@@ -34,3 +34,15 @@ export async function updateAlertStatus(alertId: string, status: AlertStatus): P
   const { data } = await apiClient.patch<Alert>(`/alerts/${alertId}`, { status });
   return data;
 }
+
+export interface AlertSummary {
+  by_status: Record<AlertStatus, number>;
+  open: number;
+  open_by_severity: Record<"LOW" | "MEDIUM" | "HIGH" | "CRITICAL", number>;
+  open_high_or_critical: number;
+}
+
+export async function getAlertSummary(): Promise<AlertSummary> {
+  const { data } = await apiClient.get<AlertSummary>("/alerts/summary");
+  return data;
+}

@@ -25,6 +25,9 @@ _FIELDS = [
     "minimumDepthInMeters",
     "maximumDepthInMeters",
     "flags",
+    "species",
+    "speciesid",
+    "class",
 ]
 _REQUIRED_RAW_COLUMNS = ["decimalLatitude", "decimalLongitude", "eventDate", "scientificName"]
 
@@ -57,16 +60,20 @@ class OBISAdapter(BaseIngestionAdapter):
 
     def fetch(self, params: IngestionParams) -> pd.DataFrame:
         base_url = f"{self.settings.OBIS_API_BASE_URL}/occurrence"
+        cap = min(params.max_records or _MAX_RECORDS_PER_RUN, _MAX_RECORDS_PER_RUN)
+        page_size = min(_PAGE_SIZE, cap)
         query = {
             "geometry": _bbox_to_wkt_polygon(params),
             "startdate": params.start_date.isoformat(),
             "enddate": params.end_date.isoformat(),
-            "size": _PAGE_SIZE,
+            "size": page_size,
         }
+        if params.scientific_name:
+            query["scientificname"] = params.scientific_name
 
         records: list[dict] = []
         after: str | None = None
-        while len(records) < _MAX_RECORDS_PER_RUN:
+        while len(records) < cap:
             page_query = dict(query)
             if after is not None:
                 page_query["after"] = after
@@ -81,11 +88,11 @@ class OBISAdapter(BaseIngestionAdapter):
             for result in results:
                 records.append({field: result.get(field) for field in _FIELDS})
 
-            if len(results) < _PAGE_SIZE:
+            if len(results) < page_size:
                 break
             after = results[-1]["id"]
 
-        return pd.DataFrame(records[:_MAX_RECORDS_PER_RUN])
+        return pd.DataFrame(records[:cap])
 
     def validate(self, raw_df: pd.DataFrame) -> tuple[pd.DataFrame, QualityMetrics]:
         metrics = QualityMetrics(records_read=len(raw_df))
@@ -136,6 +143,9 @@ class OBISAdapter(BaseIngestionAdapter):
                     "min_depth",
                     "max_depth",
                     "source_record_id",
+                    "species_name",
+                    "species_aphia_id",
+                    "taxon_class",
                 ]
             )
 
@@ -150,6 +160,9 @@ class OBISAdapter(BaseIngestionAdapter):
                 "min_depth": pd.to_numeric(valid_df["minimumDepthInMeters"], errors="coerce"),
                 "max_depth": pd.to_numeric(valid_df["maximumDepthInMeters"], errors="coerce"),
                 "source_record_id": valid_df["id"],
+                "species_name": valid_df["species"],
+                "species_aphia_id": pd.to_numeric(valid_df["speciesid"], errors="coerce"),
+                "taxon_class": valid_df["class"],
             }
         )
         # A handful of eventDate values are year-only or otherwise unparsable
@@ -175,6 +188,9 @@ class OBISAdapter(BaseIngestionAdapter):
                     "min_depth": None if pd.isna(record.min_depth) else record.min_depth,
                     "max_depth": None if pd.isna(record.max_depth) else record.max_depth,
                     "source_record_id": record.source_record_id,
+                    "species_name": None if pd.isna(record.species_name) else record.species_name,
+                    "species_aphia_id": None if pd.isna(record.species_aphia_id) else int(record.species_aphia_id),
+                    "taxon_class": None if pd.isna(record.taxon_class) else record.taxon_class,
                     "geometry": f"SRID=4326;POINT({record.longitude} {record.latitude})",
                 }
             )

@@ -1,11 +1,15 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import axios from "axios";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
+import { errorMessage } from "../utils/format";
 
 export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const expired = params.get("expired") === "1";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -18,8 +22,8 @@ export default function Login() {
     try {
       await login(email, password);
       navigate("/");
-    } catch {
-      setError("Incorrect email or password.");
+    } catch (err) {
+      setError(axios.isAxiosError(err) && err.response?.status === 401 ? "Incorrect email or password." : errorMessage(err));
     } finally {
       setIsSubmitting(false);
     }
@@ -29,8 +33,9 @@ export default function Login() {
     <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
       <div className="w-full max-w-sm rounded-xl border border-slate-200 bg-white p-8 shadow-sm">
         <h1 className="text-lg font-semibold text-slate-900">Ocean Environmental Intelligence</h1>
-        <p className="mt-1 text-sm text-slate-500">Sign in to Module 1: User &amp; Ocean Data Management</p>
+        <p className="mt-1 text-sm text-slate-500">Sign in to the ocean monitoring and marine conservation decision-support platform.</p>
 
+        {expired && <p role="alert" className="mt-4 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">Your session expired. Please sign in again.</p>}
         <form onSubmit={handleSubmit} className="mt-6 space-y-4">
           <div>
             <label className="block text-sm font-medium text-slate-700">Email</label>

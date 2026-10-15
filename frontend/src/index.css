@@ -5,3 +5,12 @@ body {
   background-color: #f8fafc;
   color: #0f172a;
 }
+
+.sst-overlay {
+  image-rendering: pixelated;
+}
+
+:focus-visible {
+  outline: 2px solid #0284c7;
+  outline-offset: 2px;
+}

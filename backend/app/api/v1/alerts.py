@@ -40,6 +40,24 @@ def list_alerts(
     return PaginatedAlerts(items=items, total=total, page=page, page_size=page_size)
 
 
+@router.get("/summary", dependencies=[Depends(get_current_user)])
+def alert_summary(db: Session = Depends(get_db)) -> dict:
+    """Counts for the dashboard: by status, and open (NEW + ACKNOWLEDGED) alerts by severity."""
+    from sqlalchemy import func, select
+
+    from app.models.alert import Alert
+
+    rows = db.execute(select(Alert.status, Alert.severity, func.count()).group_by(Alert.status, Alert.severity)).all()
+    by_status = {s.value: 0 for s in AlertStatus}
+    open_by_sev = {s.value: 0 for s in AlertSeverity}
+    for st, sev, n in rows:
+        by_status[st.value] += n
+        if st != AlertStatus.RESOLVED:
+            open_by_sev[sev.value] += n
+    return {"by_status": by_status, "open": by_status["NEW"] + by_status["ACKNOWLEDGED"], "open_by_severity": open_by_sev,
+            "open_high_or_critical": open_by_sev["HIGH"] + open_by_sev["CRITICAL"]}
+
+
 @router.get("/{alert_id}", response_model=AlertRead, dependencies=[Depends(get_current_user)])
 def get_alert(alert_id: uuid.UUID, db: Session = Depends(get_db)) -> AlertRead:
     alert = AlertRepository(db).get_by_id(alert_id)

@@ -20,6 +20,7 @@ class AlertRead(BaseModel):
     related_forecast_id: uuid.UUID | None
     related_anomaly_id: uuid.UUID | None
     related_risk_id: uuid.UUID | None
+    details: dict | None = None
     created_at: datetime
     resolved_at: datetime | None
 

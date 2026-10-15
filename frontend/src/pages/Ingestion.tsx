@@ -217,7 +217,7 @@ export default function Ingestion() {
             {jobs.length === 0 ? (
               <tr>
                 <td colSpan={7} className="px-4 py-6 text-center text-slate-400">
-                  No ingestion jobs yet.
+                  No ingestion jobs have run yet. Start one with the form above, or run python -m app.jobs sync-biodiversity.
                 </td>
               </tr>
             ) : (

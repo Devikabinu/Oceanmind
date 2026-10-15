@@ -44,5 +44,5 @@ export function usePagedList<T>(fetcher: Fetcher<T>, pageSize: number) {
     setFiltersState(next);
   }, []);
 
-  return { items, setItems, total, page, setPage, setFilters, isLoading, error };
+  return { items, setItems, total, page, setPage, filters, setFilters, isLoading, error };
 }

@@ -14,6 +14,14 @@ import Anomalies from "./pages/Anomalies";
 import Risk from "./pages/Risk";
 import Alerts from "./pages/Alerts";
 import Profile from "./pages/Profile";
+import RiskAlerts from "./pages/RiskAlerts";
+import OceanData from "./pages/OceanData";
+import ModelPerformance from "./pages/ModelPerformance";
+import OceanMapPage from "./pages/OceanMapPage";
+import Heatwaves from "./pages/Heatwaves";
+import SpeciesList from "./pages/SpeciesList";
+import SpeciesDetail from "./pages/SpeciesDetail";
+import EcologicalRisk from "./pages/EcologicalRisk";
 
 export default function App() {
   return (
@@ -30,6 +38,9 @@ export default function App() {
             }
           >
             <Route path="/" element={<Dashboard />} />
+            <Route path="/risk-alerts" element={<RiskAlerts />} />
+            <Route path="/ocean-data" element={<OceanData />} />
+            <Route path="/performance" element={<ModelPerformance />} />
             <Route path="/data-sources" element={<DataSources />} />
             <Route path="/datasets" element={<Datasets />} />
             <Route path="/ingestion" element={<Ingestion />} />
@@ -37,6 +48,11 @@ export default function App() {
             <Route path="/forecast" element={<Forecast />} />
             <Route path="/anomaly" element={<Anomalies />} />
             <Route path="/risk" element={<Risk />} />
+            <Route path="/map" element={<OceanMapPage />} />
+            <Route path="/heatwaves" element={<Heatwaves />} />
+            <Route path="/species" element={<SpeciesList />} />
+            <Route path="/species/:aphiaId" element={<SpeciesDetail />} />
+            <Route path="/ecological-risk" element={<EcologicalRisk />} />
             <Route path="/alerts" element={<Alerts />} />
             <Route path="/profile" element={<Profile />} />
           </Route>

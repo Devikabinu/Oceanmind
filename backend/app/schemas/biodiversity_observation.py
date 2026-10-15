@@ -17,6 +17,9 @@ class BiodiversityObservationRead(BaseModel):
     min_depth: float | None
     max_depth: float | None
     source_record_id: str | None
+    species_name: str | None = None
+    species_aphia_id: int | None = None
+    taxon_class: str | None = None
 
 
 class PaginatedBiodiversityObservations(BaseModel):

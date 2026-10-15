@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 
 from geoalchemy2 import Geometry
-from sqlalchemy import DateTime, Float, ForeignKey, Index, String, func
+from sqlalchemy import DateTime, Float, ForeignKey, Index, Integer, String, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -31,6 +31,11 @@ class BiodiversityObservation(Base):
     max_depth: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     source_record_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+    # Species-level identity from OBIS (scientific_name may be a subspecies). NULL for rows ingested before these existed.
+    species_name: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    species_aphia_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    taxon_class: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
     geometry: Mapped[str] = mapped_column(
         Geometry(geometry_type="POINT", srid=4326), nullable=False

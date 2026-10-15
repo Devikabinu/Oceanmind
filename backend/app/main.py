@@ -16,8 +16,13 @@ from app.api.v1.data_sources import router as data_sources_router
 from app.api.v1.datasets import router as datasets_router
 from app.api.v1.forecast import router as forecast_router
 from app.api.v1.ingestion import router as ingestion_router
+from app.api.v1.ecological_risk import router as ecological_risk_router
+from app.api.v1.heatwaves import router as heatwaves_router
+from app.api.v1.monitor import router as monitor_router
+from app.api.v1.ocean import router as ocean_router
 from app.api.v1.ocean_observations import router as ocean_observations_router
 from app.api.v1.risk import router as risk_router
+from app.api.v1.species import router as species_router
 from app.core.config import get_settings
 from app.core.logging import configure_logging
 from app.db.seed import seed_data_sources
@@ -59,9 +64,15 @@ app.add_middleware(
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     logger.exception("Unhandled error on %s %s", request.method, request.url.path)
+    # Errors raised outside the CORS middleware would otherwise reach the browser as an opaque network error;
+    # echo the allowed origin so the UI can show a real message. Never include exception details.
+    headers = {}
+    if request.headers.get("origin") == settings.FRONTEND_ORIGIN:
+        headers = {"Access-Control-Allow-Origin": settings.FRONTEND_ORIGIN, "Access-Control-Allow-Credentials": "true"}
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        content={"detail": "Internal server error"},
+        content={"detail": "The server hit an unexpected problem. Please try again; if it persists, check the backend logs."},
+        headers=headers,
     )
 
 
@@ -82,3 +93,8 @@ app.include_router(forecast_router, prefix="/api")
 app.include_router(anomaly_router, prefix="/api")
 app.include_router(risk_router, prefix="/api")
 app.include_router(alerts_router, prefix="/api")
+app.include_router(monitor_router, prefix="/api")
+app.include_router(species_router, prefix="/api")
+app.include_router(heatwaves_router, prefix="/api")
+app.include_router(ecological_risk_router, prefix="/api")
+app.include_router(ocean_router, prefix="/api")

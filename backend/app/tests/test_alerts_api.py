@@ -122,3 +122,20 @@ def test_patch_alert_ignores_other_fields(client, db_session):
     )
     assert response.status_code == 200
     assert response.json()["severity"] == "HIGH" and response.json()["message"] == "test alert"
+
+
+def test_alert_summary_counts_open_alerts_by_severity(client, db_session):
+    from app.models.enums import AlertSeverity, AlertStatus
+    from app.tests._helpers import make_alert
+
+    h = auth_headers(client)
+    assert client.get("/api/alerts/summary").status_code == 401
+    empty = client.get("/api/alerts/summary", headers=h).json()
+    assert empty["open"] == 0 and empty["open_high_or_critical"] == 0
+    make_alert(db_session, severity=AlertSeverity.HIGH)
+    make_alert(db_session, severity=AlertSeverity.CRITICAL, status=AlertStatus.ACKNOWLEDGED)
+    make_alert(db_session, severity=AlertSeverity.CRITICAL, status=AlertStatus.RESOLVED)
+    make_alert(db_session, severity=AlertSeverity.LOW)
+    s = client.get("/api/alerts/summary", headers=h).json()
+    assert s["open"] == 3 and s["open_high_or_critical"] == 2 and s["by_status"]["RESOLVED"] == 1
+    assert s["open_by_severity"] == {"LOW": 1, "MEDIUM": 0, "HIGH": 1, "CRITICAL": 1}

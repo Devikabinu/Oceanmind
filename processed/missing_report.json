@@ -1,0 +1,11 @@
+{
+  "sst": {
+    "ocean_cell_days": 98704872,
+    "missing_before": 348327,
+    "filled": 183330,
+    "missing_after": 164997,
+    "pct_missing_before": 0.35289747399702825,
+    "pct_of_missing_filled": 52.63157894736842,
+    "pct_missing_after": 0.16716196136701336
+  }
+}

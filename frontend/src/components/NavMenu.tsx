@@ -19,7 +19,10 @@ function GroupMenu({ group }: { group: NavGroup }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const { pathname } = useLocation();
-  const isActive = group.items.some((item) => pathname === item.to);
+  const isActive = group.items.some((item) => {
+    const base = item.to.split("?")[0];
+    return pathname === base || pathname.startsWith(`${base}/`);
+  });
 
   useEffect(() => {
     if (!open) return;
@@ -82,7 +85,7 @@ function GroupMenu({ group }: { group: NavGroup }) {
 /** Single-link groups render as a plain link; multi-link groups as a dropdown. */
 export default function NavMenu({ groups }: { groups: NavGroup[] }) {
   return (
-    <nav className="flex items-center gap-1">
+    <nav className="flex flex-wrap items-center gap-1">
       {groups.map((group) =>
         group.items.length === 1 ? (
           <NavLink

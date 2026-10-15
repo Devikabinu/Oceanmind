@@ -1,4 +1,6 @@
 import logging
+import os
+import time
 import uuid
 
 import pandas as pd
@@ -35,6 +37,30 @@ def _to_0_360(lon: float) -> float:
     return lon % 360
 
 
+def _work_around_netcdf_ca_path_with_spaces() -> None:
+    """netCDF4 points netcdf-c's HTTP.SSL.CAINFO at certifi's bundle, but netcdf-c mangles paths that contain
+    a space (e.g. a Windows user profile or venv under a "First Last" user folder), so every https OPeNDAP open
+    fails with "NetCDF: I/O failure". Re-point it at the space-free 8.3 short path of the same file."""
+    if os.name != "nt":
+        return
+    try:
+        import certifi
+        import ctypes
+        import netCDF4
+
+        path = certifi.where()
+        if " " not in path or not hasattr(netCDF4, "rc_set"):
+            return
+        buf = ctypes.create_unicode_buffer(1024)
+        if ctypes.windll.kernel32.GetShortPathNameW(path, buf, 1024) and " " not in buf.value:
+            netCDF4.rc_set("HTTP.SSL.CAINFO", buf.value)
+    except Exception:  # best effort: never block ingestion on this shim
+        logger.debug("could not adjust netCDF CA bundle path", exc_info=True)
+
+
+_work_around_netcdf_ca_path_with_spaces()
+
+
 def _decode_time_coord(ds: xr.Dataset) -> xr.Dataset:
     """Manually decode the CF 'days since <reference>' time units via pandas.
 
@@ -62,6 +88,25 @@ class NOAAAdapter(BaseIngestionAdapter):
     def __init__(self) -> None:
         self.settings = get_settings()
 
+    @staticmethod
+    def _open_with_retry(url: str, attempts: int = 5, base_delay: float = 6.0) -> xr.Dataset | None:
+        """NOAA PSL rate-limits bursts of OPeNDAP opens (HTTP 429 -> netCDF "Access failure"), so back off and retry
+        before treating a file as unavailable."""
+        for attempt in range(1, attempts + 1):
+            try:
+                ds = xr.open_dataset(url, decode_times=False)
+                if "units" not in ds["time"].attrs:  # degraded OPeNDAP response under load: metadata missing
+                    ds.close()
+                    raise OSError("incomplete metadata in NOAA response (time units missing)")
+                return ds
+            except (OSError, KeyError) as exc:
+                if attempt == attempts:
+                    logger.warning("NOAA source file unavailable, skipping: %s (%s)", url, exc)
+                    return None
+                logger.info("NOAA open failed (attempt %d/%d), retrying: %s (%s)", attempt, attempts, url, exc)
+                time.sleep(base_delay * attempt)
+        return None
+
     def _open_year(self, year: int, params: IngestionParams) -> xr.Dataset | None:
         lon_min_360 = _to_0_360(params.min_longitude)
         lon_max_360 = _to_0_360(params.max_longitude)
@@ -70,10 +115,8 @@ class NOAAAdapter(BaseIngestionAdapter):
         per_variable = []
         for field_name, file_template in _VARIABLE_FILES.items():
             url = f"{self.settings.NOAA_OISST_BASE_URL}/{file_template.format(year=year)}"
-            try:
-                ds = xr.open_dataset(url, decode_times=False)
-            except OSError as exc:
-                logger.warning("NOAA source file unavailable, skipping: %s (%s)", url, exc)
+            ds = self._open_with_retry(url)
+            if ds is None:
                 return None
             ds = _decode_time_coord(ds)
 

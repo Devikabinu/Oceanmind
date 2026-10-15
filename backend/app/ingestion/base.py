@@ -22,6 +22,10 @@ class IngestionParams:
     max_latitude: float
     min_longitude: float
     max_longitude: float
+    # Optional filter for sources that support it (OBIS: restrict to one taxon). Ignored by gridded sources.
+    scientific_name: str | None = None
+    # Optional cap on records fetched in this run (OBIS only); lets callers take a small sample per time window.
+    max_records: int | None = None
 
     def __post_init__(self) -> None:
         if self.start_date > self.end_date:

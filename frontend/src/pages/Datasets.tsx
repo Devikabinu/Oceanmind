@@ -80,7 +80,7 @@ export default function Datasets() {
             ) : datasets.length === 0 ? (
               <tr>
                 <td colSpan={6} className="px-4 py-6 text-center text-slate-400">
-                  No datasets yet. Start an ingestion job to create one.
+                  No datasets have been loaded yet. Datasets are created by ingestion jobs (Ingestion tab) and by the sync/publish jobs.
                 </td>
               </tr>
             ) : (

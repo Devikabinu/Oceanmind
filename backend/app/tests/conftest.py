@@ -2,7 +2,7 @@ import os
 
 os.environ.setdefault(
     "DATABASE_URL",
-    "postgresql+psycopg2://ocean_admin:change_me_locally@localhost:5433/ocean_platform_test",
+    "postgresql+psycopg2://ocean_admin:change_me_locally@localhost:5432/ocean_platform_test",
 )
 
 import pytest
@@ -55,3 +55,16 @@ def client(db_session):
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def outputs(tmp_path, monkeypatch):
+    """A tiny synthetic ML-export directory (test data only) wired in as the processed/ directory."""
+    from app.services import environment
+    from app.tests._outputs import build
+
+    build(tmp_path)
+    monkeypatch.setattr(environment, "processed_dir", lambda: tmp_path)
+    environment.clear_cache()
+    yield tmp_path
+    environment.clear_cache()

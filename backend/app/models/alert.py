@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, Enum, Float, ForeignKey, String, Text, func
+from sqlalchemy import JSON, DateTime, Enum, Float, ForeignKey, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -49,6 +49,10 @@ class Alert(Base):
         ForeignKey("ecological_risk_scores.id", ondelete="SET NULL"),
         nullable=True,
     )
+
+    # Structured evidence behind the alert (driver, numbered reasons, data sources, region...). Added after the
+    # original contract; NULL for alerts written by older batch jobs. See CONTRACTS.md.
+    details: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

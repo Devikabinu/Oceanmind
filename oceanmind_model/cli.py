@@ -8,6 +8,10 @@ import sys
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="oceanmind_model")
     sub = ap.add_subparsers(dest="cmd", required=True)
+    x = sub.add_parser("export-dashboard", help="write the forecast snapshot served by the dashboard backend")
+    x.add_argument("--config", default="config.yaml")
+    x.add_argument("--device", default=None)
+    x.add_argument("--out-subdir", default="model")
     t = sub.add_parser("train", help="train on TRAIN, early-stop on VALIDATION")
     e = sub.add_parser("evaluate", help="score a checkpoint and compare with the baselines")
     for p in (t, e):
@@ -25,6 +29,11 @@ def main(argv=None):
 
     from oceanmind_preprocess.config import load_config
     cfg = load_config(args.config)
+    if args.cmd == "export-dashboard":
+        from .export_demo import export_dashboard_snapshot
+        info = export_dashboard_snapshot(cfg, "best", "test", args.out_subdir, args.device)
+        print(f"wrote dashboard snapshot: input ends {info['input_end_date']}, targets {info['target_dates'][0]}..{info['target_dates'][-1]}")
+        return 0
     if args.cmd == "train":
         from .train import train
         train(cfg, args.out_subdir, args.epochs, args.batch_size, args.device, args.limit_train, args.limit_val)

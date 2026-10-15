@@ -118,6 +118,9 @@ export interface BiodiversityObservation {
   min_depth: number | null;
   max_depth: number | null;
   source_record_id: string | null;
+  species_name?: string | null;
+  species_aphia_id?: number | null;
+  taxon_class?: string | null;
 }
 
 export interface SSTForecast {
@@ -161,6 +164,19 @@ export interface EcologicalRiskScore {
 export type AlertSeverity = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
 export type AlertStatus = "NEW" | "ACKNOWLEDGED" | "RESOLVED";
 
+export interface AlertDetails {
+  key: string;
+  driver: string;
+  region: string;
+  reasons: string[];
+  data_sources: string[];
+  classification: string;
+  recommendation: string;
+  species?: { aphia_id: number | null; scientific_name: string; common_name?: string | null }[];
+  evidence?: Record<string, unknown>;
+  evidence_summary?: { label: string; value: string }[];
+}
+
 export interface Alert {
   id: string;
   alert_type: string;
@@ -173,6 +189,7 @@ export interface Alert {
   related_forecast_id: string | null;
   related_anomaly_id: string | null;
   related_risk_id: string | null;
+  details: AlertDetails | null;
   created_at: string;
   resolved_at: string | null;
 }

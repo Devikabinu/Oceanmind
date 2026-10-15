@@ -66,7 +66,7 @@ export default function DataQuality() {
       ) : isLoading ? (
         <p className="mt-6 text-sm text-slate-400">Loading...</p>
       ) : reports.length === 0 ? (
-        <p className="mt-6 text-sm text-slate-400">No quality reports for this dataset.</p>
+        <p className="mt-6 text-sm text-slate-400">No quality report exists for this dataset. Reports are written when an ingestion job completes.</p>
       ) : (
         <>
           <div className="mt-6 rounded-lg border border-slate-200 bg-white p-5">

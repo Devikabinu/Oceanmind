@@ -70,3 +70,31 @@ Oceanmind/
 ├── requirements.txt         # Python dependencies, if applicable
 ├── .env.example             # Environment variable template
 └── README.md
+## Ocean Environmental Intelligence platform
+
+OceanMind is now a decision-support platform that connects observations, anomalies, forecasts, marine heatwaves, species records and
+explainable risk and alerts. **Full documentation (architecture, data sources, methods, API, limitations, setup):
+[docs/PLATFORM.md](docs/PLATFORM.md).**
+
+Quick start (details and prerequisites in the document above):
+
+```bash
+.venv\Scripts\python -m oceanmind_model export-dashboard --config config.yaml   # forecast, heatwaves, history -> processed/model/dashboard/
+cd backend && .venv\Scripts\alembic upgrade head
+.venv\Scripts\python -m app.jobs sync-biodiversity      # real OBIS records + species catalogue (needs internet)
+.venv\Scripts\python -m app.jobs publish-outputs        # DB rows + explainable alerts derived from the export
+.venv\Scripts\uvicorn app.main:app --port 8000          # API, docs at /docs
+cd ../frontend && npm install && npm run dev            # http://localhost:5173
+```
+
+Pages: Dashboard · Explore Ocean (Ocean Map, Forecast, Anomalies) · Marine Biodiversity (Species, Species Risk) · Environmental Risk
+(Marine Heatwaves, Ecological Risk, Alerts) · Ocean Data · Model Performance. The recommended review walkthrough is in
+[docs/PLATFORM.md](docs/PLATFORM.md#12-review-demonstration-path).
+
+Tests: `cd backend && .venv\Scripts\python -m pytest app/tests` (add `-m "not network"` to skip the three live NOAA/OBIS tests), `.venv\Scripts\python -m pytest tests`
+(ML), `cd frontend && npm run build`, `cd backend && .venv\Scripts\alembic check`.
+
+Scientific honesty rules used throughout: data are labelled *Observation* / *Model output* / *Derived metric* / *Interpretation*;
+SST, forecast, heatwave and risk layers exist only inside the NE Pacific study region (the map says so); the marine-heatwave
+definition and the risk indicator are project-level and documented; species risk means *potential exposure*, never proven harm;
+nothing is synthesised to fill an empty screen.

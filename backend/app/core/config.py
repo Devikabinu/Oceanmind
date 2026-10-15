@@ -17,6 +17,9 @@ class Settings(BaseSettings):
 
     FRONTEND_ORIGIN: str = "http://localhost:5173"
 
+    # Where the ML pipeline writes its outputs (metrics, dashboard snapshot). Empty = <repo>/processed.
+    PROCESSED_DIR: str = ""
+
     NOAA_OISST_BASE_URL: str = (
         "https://psl.noaa.gov/thredds/dodsC/Datasets/noaa.oisst.v2.highres"
     )
