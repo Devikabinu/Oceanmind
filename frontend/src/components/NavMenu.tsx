@@ -1,4 +1,3 @@
-import { useEffect, useRef, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 
 export interface NavItem {
@@ -11,93 +10,46 @@ export interface NavGroup {
   items: NavItem[];
 }
 
-const PILL = "shrink-0 rounded-md px-3 py-1.5 text-sm font-medium transition-colors";
-const PILL_ACTIVE = "bg-slate-900 text-white";
-const PILL_IDLE = "text-slate-600 hover:bg-slate-100 hover:text-slate-900";
+const LINK = "flex items-center gap-2 rounded-md border-l-2 px-3 py-1.5 text-sm transition-colors";
+const ACTIVE = "border-cyan-300 bg-white/10 font-semibold text-white";
+const IDLE = "border-transparent text-sky-100/80 hover:bg-white/5 hover:text-white";
 
-function GroupMenu({ group }: { group: NavGroup }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  const { pathname } = useLocation();
-  const isActive = group.items.some((item) => {
-    const base = item.to.split("?")[0];
-    return pathname === base || pathname.startsWith(`${base}/`);
-  });
-
-  useEffect(() => {
-    if (!open) return;
-    function onPointerDown(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    }
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") setOpen(false);
-    }
-    document.addEventListener("mousedown", onPointerDown);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", onPointerDown);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [open]);
-
+/** Vertical navigation: groups with a heading, single-link groups as a plain link. The active page is marked by a bar, a fill and aria-current. */
+export default function NavMenu({ groups, onNavigate }: { groups: NavGroup[]; onNavigate?: () => void }) {
+  const { pathname, search } = useLocation();
   return (
-    <div ref={ref} className="relative">
-      <button
-        type="button"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        onClick={() => setOpen((o) => !o)}
-        className={`${PILL} flex items-center gap-1 ${isActive ? PILL_ACTIVE : PILL_IDLE}`}
-      >
-        {group.label}
-        <span aria-hidden className={`text-[10px] transition-transform ${open ? "rotate-180" : ""}`}>
-          &#9660;
-        </span>
-      </button>
-      {open && (
-        <div
-          role="menu"
-          className="absolute left-0 z-20 mt-1 min-w-44 rounded-md border border-slate-200 bg-white py-1 shadow-md"
-        >
-          {group.items.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              role="menuitem"
-              onClick={() => setOpen(false)}
-              className={({ isActive: linkActive }) =>
-                `block px-4 py-2 text-sm ${
-                  linkActive
-                    ? "bg-slate-100 font-medium text-slate-900"
-                    : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-                }`
-              }
-            >
-              {item.label}
-            </NavLink>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/** Single-link groups render as a plain link; multi-link groups as a dropdown. */
-export default function NavMenu({ groups }: { groups: NavGroup[] }) {
-  return (
-    <nav className="flex flex-wrap items-center gap-1">
+    <nav aria-label="Main" className="space-y-4">
       {groups.map((group) =>
         group.items.length === 1 ? (
           <NavLink
             key={group.label}
             to={group.items[0].to}
             end={group.items[0].to === "/"}
-            className={({ isActive }) => `${PILL} ${isActive ? PILL_ACTIVE : PILL_IDLE}`}
+            onClick={onNavigate}
+            className={({ isActive }) => `${LINK} ${isActive ? ACTIVE : IDLE}`}
           >
             {group.label}
           </NavLink>
         ) : (
-          <GroupMenu key={group.label} group={group} />
+          <div key={group.label}>
+            <div className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-cyan-200/70">{group.label}</div>
+            <ul className="space-y-0.5">
+              {group.items.map((item) => {
+                const [base, query] = item.to.split("?");
+                const active = query ? pathname === base && search === `?${query}` : pathname === base || pathname.startsWith(`${base}/`);
+                // two links share /ecological-risk (with and without ?tab=species): only the exact one is active
+                const shadowed = !query && group.items.some((o) => o.to.includes("?") && o.to.split("?")[0] === base && search === `?${o.to.split("?")[1]}`);
+                const on = active && !shadowed;
+                return (
+                  <li key={item.to}>
+                    <NavLink to={item.to} onClick={onNavigate} aria-current={on ? "page" : undefined} className={`${LINK} ${on ? ACTIVE : IDLE}`}>
+                      {item.label}
+                    </NavLink>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
         ),
       )}
     </nav>

@@ -16,11 +16,14 @@ import WhyPanel from "../components/WhyPanel";
 import { useAsync } from "../hooks/useAsync";
 import { cached, useOverview } from "../hooks/useCached";
 import type { Alert } from "../types";
+import ContextBar from "../components/ContextBar";
+import PacificDashboard from "../components/PacificDashboard";
+import { useActive } from "../contexts/ActiveSelection";
 
 const signed = (v: number | null, d = 1) => (v == null ? "–" : `${v > 0 ? "+" : ""}${v.toFixed(d)}`);
 const km2 = (v: number) => `${Math.round(v).toLocaleString()} km²`;
 
-export default function Dashboard() {
+function NeDashboard() {
   const navigate = useNavigate();
   const overview = useOverview();
   const alerts = useAsync(() => listAlerts({ status: "NEW", page_size: 4 }), []);
@@ -44,7 +47,10 @@ export default function Dashboard() {
         alerts need attention. Every card links to the detailed page.
       </PageHeader>
 
-      <div className="mt-4 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900" role="note">
+      <div className="mt-3">
+        <ContextBar showRegion={false} note="NE Pacific study-region dashboard (observed SST, ConvLSTM forecast). Switch the dataset to see the Pacific-wide overview." />
+      </div>
+      <div className="on-deep mt-4 rounded-lg bg-gradient-to-r from-deep via-abyss to-tide px-4 py-3 text-sm leading-relaxed text-cyan-50" role="note">
         {o ? (
           <>
             <strong>Latest available data (not a live feed):</strong> observations to <strong>{o.data_status.observed_date}</strong> ({o.data_status.data_age_days} days ago).{" "}
@@ -56,7 +62,8 @@ export default function Dashboard() {
         )}
         <br />
         <strong>Coverage:</strong> the environmental model (SST, forecast, heatwaves, risk) covers the NE Pacific study region (20–50°N, 160–120°W) only. Biodiversity records
-        come from OBIS, which is global where observations exist; this installation stores a sample for the study region.
+        come from OBIS, which is global where observations exist; this installation stores a time-spread selection of records for the study region.{" "}
+        <Link to="/ocean-map" className="font-semibold text-white underline">Open the Pacific Ocean map (SST and anomaly across the whole Pacific) →</Link>
       </div>
 
       <section className="mt-4" aria-label="Summary">
@@ -112,7 +119,7 @@ export default function Dashboard() {
                   label="Species observed"
                   value={bio.data ? String(bio.data.species_with_records) : "…"}
                   note={bio.data ? `${bio.data.n_species} species catalogued; ${bio.data.n_records.toLocaleString()} OBIS records stored.` : undefined}
-                  meta="Source OBIS (sample for the study region)"
+                  meta="Source OBIS (time-spread selection of records for the study region)"
                 />
                 <Metric
                   label="Recent observations"
@@ -185,8 +192,8 @@ export default function Dashboard() {
 
       <section className="mt-8" aria-labelledby="map-h">
         <div className="mb-3 flex items-baseline justify-between">
-          <h2 id="map-h" className="text-lg font-semibold text-slate-900">Ocean map</h2>
-          <Link to="/map" className="text-sm font-medium text-slate-700 underline">Open the full map (all layers, species, alerts) →</Link>
+          <h2 id="map-h" className="border-l-4 border-lagoon pl-3 text-lg font-semibold text-slate-900">NE Pacific study-region map</h2>
+          <Link to="/ocean-map" className="text-sm font-semibold text-tide hover:underline">Open the full Pacific map →</Link>
         </div>
         <OceanMap initialLayer="observed_anomaly" events={events} onEventClick={(id) => navigate(`/heatwaves?event=${id}`)} />
       </section>
@@ -197,7 +204,7 @@ export default function Dashboard() {
 
       <section className="mt-8" aria-labelledby="alerts-h">
         <div className="mb-3 flex items-baseline justify-between">
-          <h2 id="alerts-h" className="text-lg font-semibold text-slate-900">Newest open alerts</h2>
+          <h2 id="alerts-h" className="border-l-4 border-orange-500 pl-3 text-lg font-semibold text-slate-900">Newest open alerts</h2>
           <Link to="/alerts" className="text-sm font-medium text-slate-700 underline">All alerts →</Link>
         </div>
         <Status isLoading={alerts.isLoading} error={alerts.error} hasData={!!alerts.data}>
@@ -231,4 +238,10 @@ export default function Dashboard() {
       )}
     </div>
   );
+}
+
+/** The Dashboard of the active dataset: the NE Pacific study-region overview, or the Pacific-wide overview built from the environment API. */
+export default function Dashboard() {
+  const act = useActive();
+  return act.dataset === "ne_pacific" ? <NeDashboard /> : <PacificDashboard />;
 }

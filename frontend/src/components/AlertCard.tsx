@@ -3,7 +3,10 @@ import { Link } from "react-router-dom";
 import type { Alert, AlertStatus } from "../types";
 import Badge from "./Badge";
 import type { BadgeTone } from "./Badge";
+import ExplanationPanel from "./ExplanationPanel";
 import SeverityBadge from "./SeverityBadge";
+import { alertMapLink } from "../utils/alertLinks";
+import SourceTag from "./SourceTag";
 import WhyPanel from "./WhyPanel";
 
 export const ALERT_TYPE_LABEL: Record<string, string> = {
@@ -42,6 +45,8 @@ export default function AlertCard({ alert, canUpdate = false, busy = false, onSt
         <SeverityBadge level={alert.severity} />
         <span className="text-sm font-semibold text-slate-900">{ALERT_TYPE_LABEL[alert.alert_type] ?? alert.alert_type}</span>
         <Badge tone={STATUS_TONE[alert.status]}>{alert.status}</Badge>
+        {d?.dataset && d.dataset !== "ne_pacific" && <Badge tone="blue">{d.dataset}</Badge>}
+        {d?.is_observational === false && <SourceTag kind="generated" />}
         <span className="ml-auto text-xs text-slate-500">{alert.timestamp.slice(0, 10)}</span>
       </div>
       <p className="mt-2 text-sm text-slate-800">{alert.message}</p>
@@ -74,6 +79,18 @@ export default function AlertCard({ alert, canUpdate = false, busy = false, onSt
                   </span>
                 ))}
               </dd>
+            </div>
+          )}
+          {d?.risk?.level && (
+            <div>
+              <dt className="inline font-medium text-slate-700">Ecological risk: </dt>
+              <dd className="inline">{d.risk.level}{d.risk.score != null ? ` (${d.risk.score.toFixed(2)})` : ""}</dd>
+            </div>
+          )}
+          {d?.conservation_sensitive && d.conservation_sensitive.length > 0 && (
+            <div className="sm:col-span-2">
+              <dt className="inline font-medium text-slate-700">Conservation-sensitive species (source category): </dt>
+              <dd className="inline">{d.conservation_sensitive.map((s) => `${s.common_name ?? s.scientific_name}${s.iucn_category ? ` (${s.iucn_category})` : ""}`).join(", ")}</dd>
             </div>
           )}
           {alert.resolved_at && (
@@ -129,6 +146,16 @@ export default function AlertCard({ alert, canUpdate = false, busy = false, onSt
             </div>
           )}
           <WhyPanel title="Why this alert?" reasons={d.reasons} sources={d.data_sources} classification={d.classification} recommendation={d.recommendation} />
+          {d.narrative && <ExplanationPanel explanation={d.narrative} title="Plain-language explanation of the evidence" defaultOpenAll={false} />}
+          {d.dataset && d.dataset !== "ne_pacific" && (
+            <nav aria-label="Where this alert comes from" className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+              <span className="font-semibold uppercase tracking-wide text-slate-600">Evidence trail</span>
+              {d.event_id && <Link className="font-semibold text-tide hover:underline" to={`/heatwaves?dataset=${d.dataset}&region=${d.region_id ?? "pacific"}&event=${d.event_id}`}>Heatwave event →</Link>}
+              <Link className="font-semibold text-tide hover:underline" to={alertMapLink(d)}>Exact map location →</Link>
+              <Link className="font-semibold text-tide hover:underline" to={`/ecological-risk?dataset=${d.dataset}&region=${d.region_id ?? "pacific"}${d.location ? `&lat=${d.location.lat}&lon=${d.location.lon_180}` : ""}`}>Ecological risk here →</Link>
+              <Link className="font-semibold text-tide hover:underline" to={`/forecast?dataset=${d.dataset}&region=${d.region_id ?? "pacific"}`}>Forecast →</Link>
+            </nav>
+          )}
         </div>
       )}
     </article>

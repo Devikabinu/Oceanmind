@@ -43,7 +43,8 @@ export interface Scale {
 /** Sequential scale over [min,max], or a symmetric diverging scale around 0 using max(|min|,|max|). */
 export function makeScale(min: number, max: number, diverging: boolean): Scale {
   if (diverging) {
-    const m = Math.max(Math.abs(min), Math.abs(max), 0.5);
+    // saturate at +-2.5 degC so that ordinary anomalies (0.5 to 2 degC) are clearly visible; larger departures keep the end colour
+    const m = Math.min(Math.max(Math.abs(min), Math.abs(max), 0.5), 2.5);
     return { min: -m, max: m, diverging, color: (v) => sample(DIVERGING, (v + m) / (2 * m)) };
   }
   const span = max - min || 1;

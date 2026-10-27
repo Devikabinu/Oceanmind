@@ -16,13 +16,13 @@ interface Props {
 export default function KpiCard({ label, value, hint, tag, to, tone = "default" }: Props) {
   const body = (
     <div
-      className={`h-full rounded-lg border bg-white p-4 transition-colors hover:border-slate-400 ${tone === "warn" ? "border-orange-300" : "border-slate-200"}`}
+      className={`h-full rounded-lg border-l-4 bg-white/80 p-4 shadow-sm ring-1 ring-slate-200 transition-colors hover:bg-white ${tone === "warn" ? "border-orange-500" : "border-lagoon"}`}
     >
       <div className="flex items-start justify-between gap-2">
-        <div className="text-xs font-medium uppercase tracking-wide text-slate-600">{label}</div>
+        <div className="text-xs font-semibold uppercase tracking-wide text-slate-600">{label}</div>
         <SourceTag kind={tag} />
       </div>
-      <div className="mt-1 text-2xl font-semibold text-slate-900">{value}</div>
+      <div className="mt-1 text-3xl font-semibold tracking-tight text-slate-900">{value}</div>
       <div className="mt-1 text-xs text-slate-600">{hint}</div>
     </div>
   );

@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { getMethodology, getRiskAreas, getSpeciesRanking } from "../api/intelligence";
+import { getMethodology, getRiskAreas, getRiskExplanation, getRiskMap, getSpeciesRanking } from "../api/intelligence";
 import type { RiskArea } from "../api/intelligence";
+import { getDates, getDatasets, getRegions as getEnvRegions } from "../api/environment";
 import { getMapLayer } from "../api/monitor";
 import type { Level, RegionName } from "../api/monitor";
 import { REGION_LABELS } from "../components/RegionForecast";
@@ -13,7 +15,13 @@ import SourceTag from "../components/SourceTag";
 import SstMap from "../components/SstMap";
 import Status from "../components/Status";
 import Term from "../components/Term";
+import FactorBars from "../components/FactorBars";
 import { useAsync } from "../hooks/useAsync";
+import { cached } from "../hooks/useCached";
+import { useActive } from "../contexts/ActiveSelection";
+import ExplanationPanel from "../components/ExplanationPanel";
+import RelatedLinks from "../components/RelatedLinks";
+import { axisOrigin, extentToBounds, riskToMapLayer } from "../utils/mapCoords";
 import Risk from "./Risk";
 
 const TABS = [
@@ -25,33 +33,248 @@ type TabId = (typeof TABS)[number]["id"];
 const LEVELS: Level[] = ["LOW", "MEDIUM", "HIGH", "CRITICAL"];
 const FACTOR_NAME: Record<string, string> = { anomaly: "SST anomaly", persistence: "Heatwave persistence", forecast: "Forecast anomaly", overlap: "Species overlap" };
 
+const LEGACY_DATASET = "ne_pacific";
+const STATE_COLORS: Record<number, [number, number, number, number]> = { 1: [236, 236, 236, 235], 2: [58, 58, 58, 235] };
+const STATE_LABELS: Record<number, string> = {
+  1: "insufficient data: no SST anomaly to assess",
+  2: "unavailable: no environmental data this day",
+  3: "land",
+  4: "outside the selected region",
+};
+const STATUS_TITLE: Record<string, string> = {
+  insufficient_data: "Insufficient data",
+  unavailable: "Unavailable",
+  land: "Land",
+  outside_region: "Outside the selected region",
+};
+const BIO_TEXT: Record<string, string> = {
+  observed: "Observed: OBIS records exist in this 2°×2° block",
+  none_recorded: "None recorded (records were gathered for this area)",
+  insufficient_coverage: "Insufficient coverage: no records here, which is not the same as no animals",
+  unavailable: "Unavailable: no biodiversity data loaded",
+};
+const lonLabel = (lon: number) => `${Math.abs(lon).toFixed(1)}°${lon < 0 ? "W" : "E"}`;
+const latLabel = (lat: number) => `${Math.abs(lat).toFixed(1)}°${lat >= 0 ? "N" : "S"}`;
+
+/** Details of one Pacific risk cell: the score, every factor with its availability, and the biodiversity evidence. Missing evidence is never shown as low risk. */
+function RiskCellPanel({ point, dataset, date }: { point: { lat: number; lon: number } | null; dataset: string; date: string | null }) {
+  const cell = useAsync(() => (point && date ? getRiskExplanation(point.lat, point.lon, dataset, date) : Promise.resolve(null)), [point?.lat, point?.lon, dataset, date]);
+  const shell = (title: string, body: ReactNode) => (
+    <section aria-label="Selected cell" className="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-slate-200">
+      <div className="on-deep bg-gradient-to-r from-deep to-tide px-4 py-2.5 text-white">
+        <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-cyan-100/90">Selected cell</div>
+        <div className="text-lg font-semibold tabular-nums">{title}</div>
+      </div>
+      <div className="space-y-3 p-4">{body}</div>
+    </section>
+  );
+  if (!point) {
+    return (
+      <div className="rounded-xl bg-white p-4 text-sm text-slate-600 shadow-sm ring-1 ring-slate-200">
+        <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-600">Selected cell</div>
+        <p className="mt-2">Click a cell on the risk map to see its score, each factor, and which evidence is missing.</p>
+      </div>
+    );
+  }
+  const title = `${latLabel(point.lat)} · ${lonLabel(point.lon)}`;
+  if (cell.error) return shell(title, <p role="alert" className="text-sm text-amber-900">{cell.error}</p>);
+  const c = cell.data?.cell;
+  const explanation = cell.data?.explanation;
+  const fresh = c && !cell.isLoading && c.date === date && c.dataset === dataset ? c : null;
+  if (!fresh) return shell(title, <p role="status" className="text-sm text-slate-600">Loading cell…</p>);
+  const generated = !fresh.source.is_observational;
+  return shell(
+    title,
+    <>
+      {fresh.status === "assessed" && fresh.level ? (
+        <div>
+          <div className="flex items-center gap-2">
+            <SeverityBadge level={fresh.level} />
+            <span className="text-2xl font-semibold tracking-tight text-slate-900">{fresh.score?.toFixed(2)}</span>
+            <span className="text-xs text-slate-500">of 1</span>
+          </div>
+          {fresh.evidence_completeness != null && fresh.evidence_completeness < 1 && (
+            <p className="mt-1 rounded bg-amber-50 px-2 py-1 text-xs text-amber-900">
+              Partial evidence: this score uses {Math.round(fresh.evidence_completeness * 100)}% of the methodology weight. Missing factors are left out, not counted as zero.
+            </p>
+          )}
+        </div>
+      ) : (
+        <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-3">
+          <div className="text-sm font-semibold text-slate-900">{STATUS_TITLE[fresh.status] ?? fresh.status}</div>
+          <p className="mt-1 text-sm text-slate-700">
+            {fresh.status === "insufficient_data"
+              ? "The SST anomaly (the core factor) cannot be computed for this cell and day, so no risk level is given. This is not low risk."
+              : "No environmental data exist for this ocean cell on this date, so no risk level is given. This is not low risk."}
+          </p>
+        </div>
+      )}
+      <div>
+        <div className="mb-1 text-sm font-semibold text-slate-900">Risk factors</div>
+        <FactorBars factors={fresh.factors} />
+        <ul className="mt-2 space-y-1 text-xs text-slate-600">
+          {fresh.factors.filter((f) => !f.available && f.reason).map((f) => (
+            <li key={f.factor}><strong>{FACTOR_NAME[f.factor] ?? f.factor}:</strong> {f.reason}</li>
+          ))}
+          {fresh.factors.filter((f) => f.available && f.note).map((f) => (
+            <li key={`${f.factor}-note`}><strong>{FACTOR_NAME[f.factor] ?? f.factor}:</strong> {f.note}</li>
+          ))}
+        </ul>
+      </div>
+      {explanation && <ExplanationPanel explanation={explanation} title="Why this risk level (plain language)" />}
+      <div className="text-xs text-slate-700">
+        <div className="font-semibold text-slate-900">Biodiversity evidence</div>
+        {BIO_TEXT[fresh.biodiversity_evidence]}
+        {fresh.n_species != null && fresh.n_species > 0 && ` (${fresh.n_species} species)`}
+      </div>
+      <dl className="space-y-1 border-t border-slate-200 pt-2 text-xs text-slate-600">
+        <div className="flex justify-between gap-3"><dt>Date</dt><dd className="font-medium text-slate-800">{fresh.date}</dd></div>
+        <div className="flex justify-between gap-3"><dt>Grid cell</dt><dd className="font-medium text-slate-800">{latLabel(fresh.cell.lat)} · {lonLabel(fresh.cell.lon_180)}</dd></div>
+        <div className="flex justify-between gap-3"><dt>Source</dt><dd className="text-right font-medium text-slate-800">{fresh.source.provider_id}</dd></div>
+        <div className="flex justify-between gap-3">
+          <dt>Data status</dt>
+          <dd className={`rounded px-1.5 py-0.5 font-semibold ${generated ? "bg-amber-100 text-amber-900" : "bg-emerald-100 text-emerald-900"}`}>
+            {generated ? "Modelled dataset" : "Observational"}
+          </dd>
+        </div>
+      </dl>
+      <RelatedLinks point={{ lat: fresh.cell.lat, lon: fresh.cell.lon_180 }} to={["map", "heatwaves", "alerts"]} />
+    </>,
+  );
+}
+
 function Areas() {
   const [min, setMin] = useState<Level>("HIGH");
-  const [region, setRegion] = useState<RegionName>("all");
-  const [selected, setSelected] = useState<{ lat: number; lon: number } | null>(null);
-  const map = useAsync(() => getMapLayer("risk", 1), []);
-  const areas = useAsync(() => getRiskAreas(min, 40, region), [min, region]);
-  const pick = (a: RiskArea) => setSelected({ lat: a.lat, lon: a.lon });
+  const act = useActive();
+  const [qs] = useSearchParams();
+  const datasetId = act.dataset;
+  const setDatasetId = act.setDataset;
+  const region = act.region;
+  const setRegion = act.setRegion;
+  const [legacyRegion, setLegacyRegion] = useState<RegionName>("all");
+  const [selected, setSelected] = useState<{ lat: number; lon: number } | null>(() => {
+    const la = Number(qs.get("lat"));
+    const lo = Number(qs.get("lon"));
+    return qs.get("lat") && qs.get("lon") && Number.isFinite(la) && Number.isFinite(lo) ? { lat: la, lon: lo } : null;
+  });
+  const dates = useAsync(() => cached(`env-dates-${act.dataset}`, () => getDates(act.dataset)), [act.dataset]);
+  const dateRange = dates.data && dates.data.dataset === act.dataset ? dates.data : null;
+  const dateArg = act.date ?? undefined;
+  const datasets = useAsync(() => cached("env-datasets", getDatasets), []);
+  const regions = useAsync(() => cached("env-regions", getEnvRegions), []);
+  const pacific = datasetId !== LEGACY_DATASET;
+  const legacyMap = useAsync(() => (pacific ? Promise.resolve(null) : getMapLayer("risk", 1)), [pacific]);
+  const riskMap = useAsync(() => (pacific ? getRiskMap(datasetId, region, dateArg) : Promise.resolve(null)), [pacific, datasetId, region, dateArg]);
+  const areas = useAsync(
+    () => getRiskAreas(min, 40, pacific ? region : legacyRegion, pacific ? datasetId : undefined, pacific ? dateArg : undefined),
+    [min, pacific, datasetId, region, legacyRegion, dateArg],
+  );
+  // never show a risk grid that belongs to another dataset or region while a new one loads
+  const freshRisk = riskMap.data && !riskMap.isLoading && riskMap.data.dataset === datasetId && riskMap.data.region.id === region ? riskMap.data : null;
+  const layer = useMemo(() => (freshRisk ? riskToMapLayer(freshRisk) : null), [freshRisk]);
+  const regionInfo = regions.data?.regions.find((r) => r.id === region);
+  const fitTo = useMemo(() => (pacific && regionInfo?.map_extent ? extentToBounds(regionInfo.map_extent) : null), [pacific, regionInfo]);
+  const unavailable = freshRisk ? Object.entries(freshRisk.factors_unavailable) : [];
+  const pick = (a: RiskArea) => setSelected({ lat: a.lat, lon: a.lon_180 ?? a.lon });
+  const field = "flex min-w-0 max-w-full flex-col gap-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-cyan-100/90";
+  const sel = "w-full min-w-0 max-w-full rounded-md border border-white/30 bg-white px-2 py-1.5 text-sm font-normal normal-case tracking-normal text-slate-900";
   return (
     <div>
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-        <div className="xl:col-span-2">
-          <SstMap layer={map.data} selected={selected} onPick={(lat, lon) => setSelected({ lat, lon })} ariaLabel="Ecological risk map" />
-          <p className="mt-1 text-xs text-slate-500">Colour = <Term k="risk">project environmental risk indicator</Term> (0–1) per grid cell. Click a cell for the factors and the reasons.</p>
-        </div>
-        <LocationPanel point={selected} />
-      </div>
-      <section className="mt-6 rounded-lg border border-slate-200 bg-white p-4" aria-labelledby="ra">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 id="ra" className="text-sm font-semibold text-slate-900">Highest-risk 2°×2° areas</h2>
-          <label className="flex items-center gap-2 text-sm text-slate-700">
-            Region
-            <select value={region} onChange={(e) => setRegion(e.target.value as RegionName)} className="rounded-md border border-slate-300 bg-white px-2 py-1 text-sm">
+      <div className="on-deep flex flex-wrap items-end gap-x-4 gap-y-3 rounded-t-xl bg-gradient-to-r from-deep via-abyss to-tide px-4 py-3 text-white">
+        <label className={field}>
+          Dataset
+          <select
+            className={sel}
+            value={datasetId}
+            onChange={(e) => {
+              setDatasetId(e.target.value);
+              setSelected(null);
+            }}
+          >
+            {datasets.data?.datasets.map((d) => (
+              <option key={d.id} value={d.id} disabled={!d.available}>
+                {d.name}
+                {d.available ? "" : " (not available)"}
+              </option>
+            ))}
+            {!datasets.data && <option value={datasetId}>{datasetId}</option>}
+          </select>
+        </label>
+        <label className={field}>
+          Region
+          {pacific ? (
+            <select className={sel} value={region} onChange={(e) => setRegion(e.target.value)}>
+              {!regionInfo && <option value={region}>{region}</option>}
+              {regions.data?.regions.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.parent && r.parent !== "pacific" ? "  " : ""}
+                  {r.name}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <select className={sel} value={legacyRegion} onChange={(e) => setLegacyRegion(e.target.value as RegionName)}>
               {(Object.keys(REGION_LABELS) as RegionName[]).map((r) => (
                 <option key={r} value={r}>{REGION_LABELS[r]}</option>
               ))}
             </select>
+          )}
+        </label>
+        {pacific && dateRange && (
+          <label className={field}>
+            Date
+            <input type="date" className={sel} min={dateRange.first_date} max={dateRange.latest_date} value={act.date ?? dateRange.latest_date} onChange={(e) => act.setDate(e.target.value || null)} />
           </label>
+        )}
+        {pacific && freshRisk && (
+          <p className="flex flex-wrap items-center gap-x-3 gap-y-1 pb-1 text-xs text-cyan-50" data-testid="risk-meta">
+            <span><span className="text-cyan-200/80">Date</span> <strong className="text-white">{freshRisk.date}</strong></span>
+
+            <span className="text-cyan-200/80">Source {freshRisk.source.provider_id}</span>
+          </p>
+        )}
+      </div>
+      {pacific && unavailable.length > 0 && (
+        <div role="note" className="border-x border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-900">
+          <strong>Partial scores.</strong> For this dataset the score uses {freshRisk?.factors_used.map((k) => FACTOR_NAME[k] ?? k).join(" and ")}
+          {" "}(species overlap only where OBIS records exist). {unavailable.map(([k]) => FACTOR_NAME[k] ?? k).join(" and ")} are not available yet and are left out of the score; they are not counted as zero.
+        </div>
+      )}
+      {pacific && riskMap.error && <div role="alert" className="border-x border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-900">Risk map unavailable: {riskMap.error}</div>}
+      <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
+        <div>
+          <SstMap
+            layer={pacific ? layer : legacyMap.data}
+            status={pacific ? layer?.status : null}
+            statusColors={STATE_COLORS}
+            statusLabels={STATE_LABELS}
+            legendExtra={
+              pacific ? (
+                <ul className="mt-1 space-y-0.5 border-t border-white/20 pt-1">
+                  <li className="flex items-center gap-1.5"><span aria-hidden className="inline-block h-2.5 w-2.5 rounded-sm ring-1 ring-white/70" style={{ background: "rgb(236,236,236)" }} />Insufficient data (not low risk)</li>
+                  <li className="flex items-center gap-1.5"><span aria-hidden className="inline-block h-2.5 w-2.5 rounded-sm ring-1 ring-white/70" style={{ background: "rgb(58,58,58)" }} />Unavailable (not low risk)</li>
+                  <li className="text-cyan-100/80">Low &lt; 0.25 · Medium &lt; 0.5 · High &lt; 0.75 · Critical</li>
+                </ul>
+              ) : undefined
+            }
+            lonOrigin={pacific && layer ? axisOrigin(layer.lon) : null}
+            fitTo={fitTo}
+            showOutline={!pacific}
+            unavailable={pacific ? !!riskMap.error : !!legacyMap.error}
+            badge={pacific && freshRisk ? `${freshRisk.region.name} · ${freshRisk.date}`: undefined}
+            selected={selected}
+            onPick={(lat, lon) => setSelected({ lat, lon })}
+            initialView={pacific ? "world" : "study"}
+            heightClass={pacific ? "h-[calc(100vh-18rem)] min-h-[30rem]" : undefined}
+            ariaLabel="Ecological risk map"
+          />
+          <p className="mt-1 text-xs text-slate-500">Colour = <Term k="risk">project environmental risk indicator</Term> (0–1) per grid cell. Click a cell for the factors and the reasons.</p>
+        </div>
+        {pacific ? <RiskCellPanel point={selected} dataset={datasetId} date={freshRisk?.date ?? null} /> : <LocationPanel point={selected} />}
+      </div>
+      <section className="mt-6 rounded-lg bg-white/70 p-4 ring-1 ring-slate-200" aria-labelledby="ra">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 id="ra" className="text-sm font-semibold text-slate-900">Highest-risk 2°×2° areas</h2>
           <label className="flex items-center gap-2 text-sm text-slate-700">
             Minimum level
             <select value={min} onChange={(e) => setMin(e.target.value as Level)} className="rounded-md border border-slate-300 bg-white px-2 py-1 text-sm">
@@ -65,8 +288,8 @@ function Areas() {
           {areas.data && areas.data.items.length === 0 ? (
             <div className="mt-3">
               <EmptyState title={`No area in this region is rated ${min} or above on ${areas.data.date}`}>
-                <p>{region === "all" ? "No 2°×2° block reaches this level today." : `No block in “${REGION_LABELS[region]}” reaches this level today.`} Lower the minimum level or choose a larger region.</p>
-                <p>Risk is only computed inside the NE Pacific study region.</p>
+                <p>Lower the minimum level or choose a larger region. Areas without enough data are not rated at all; they are not counted as low.</p>
+                {!pacific && <p>Risk is only computed inside the NE Pacific study region for this dataset.</p>}
               </EmptyState>
             </div>
           ) : (
@@ -85,7 +308,7 @@ function Areas() {
                 <tbody>
                   {areas.data?.items.map((a) => (
                     <tr key={`${a.lat}-${a.lon}`} className="border-t border-slate-100">
-                      <td className="py-1.5 pr-3"><button type="button" className="underline" onClick={() => pick(a)}>{a.lat.toFixed(1)}°N, {Math.abs(a.lon).toFixed(1)}°W</button></td>
+                      <td className="py-1.5 pr-3"><button type="button" className="underline" onClick={() => pick(a)}>{latLabel(a.lat)}, {lonLabel(a.lon_180 ?? a.lon)}</button></td>
                       <td className="py-1.5 pr-3"><SeverityBadge level={a.level} /></td>
                       <td className="py-1.5 pr-3">{a.score.toFixed(2)}</td>
                       <td className="py-1.5 pr-3">{FACTOR_NAME[a.top_driver] ?? a.top_driver}</td>

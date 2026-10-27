@@ -184,7 +184,7 @@ class OBISAdapter(BaseIngestionAdapter):
                     "latitude": record.latitude,
                     "longitude": record.longitude,
                     "scientific_name": record.scientific_name,
-                    "occurrence_status": record.occurrence_status,
+                    "occurrence_status": None if pd.isna(record.occurrence_status) else record.occurrence_status,
                     "min_depth": None if pd.isna(record.min_depth) else record.min_depth,
                     "max_depth": None if pd.isna(record.max_depth) else record.max_depth,
                     "source_record_id": record.source_record_id,

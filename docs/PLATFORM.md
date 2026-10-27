@@ -79,22 +79,37 @@ Register a user in the app (or via `POST /api/auth/register`); roles ADMIN/RESEA
 
 ## 4. Data sources and coverage
 
-| Source | What | Coverage of the source | Loaded in this project |
-|---|---|---|---|
-| NOAA OISST v2.1 | Daily SST analysis (observed) | Global ocean, 0.25 degree, 1981-present | NE Pacific study region (20-50N, 160-120W), 2012 to the last processed day |
-| Copernicus Marine (GMPE SST) | Secondary SST (observed/analysis) | Global | Adapter only; needs free credentials |
-| OBIS | Species occurrence records | Global, uneven effort | A time-spread sample per catalogued species in the study region |
-| WoRMS / GBIF | English common names | n/a | Names only |
-| GBIF species API | IUCN Red List category for the species (CR/EN/VU/NT/LC/DD/NE) with the IUCN taxon id | Species GBIF links to an IUCN assessment | Per catalogued species (preferred source) |
-| OBIS red-list checklist | IUCN category for *threatened* species only | Threatened species only | Fallback when GBIF has no assessment |
-| Project ConvLSTM | 7-day SST forecast (model output) | Study region | Issued from the last processed day |
+| Source | What | Coverage of the source | Loaded in this project | Updated |
+|---|---|---|---|---|
+| NOAA OISST v2.1 (NOAA NCEI, via NOAA CoastWatch ERDDAP, gap days from the NCEI archive) | Daily SST analysis (observed) | Global ocean, 0.25 degree, 1981-present | Pacific Ocean 60S-65N, 100E-70W, every fourth cell (1 degree), 2002 to the latest day; NE Pacific study region at 0.25 degree | Daily; final product about 2 weeks behind, preliminary about 2 days (preliminary days are flagged) |
+| NOAA CPC Oceanic Nino Index; NOAA NCEI PDO index | Monthly climate indices | Basin-wide | Used only as labelled context in anomaly explanations | Monthly |
+| OBIS | Species occurrence records | Global, uneven effort | A time-spread selection of records per watch-list species across the Pacific (`sync-biodiversity --region pacific`) | On demand |
+| WoRMS / GBIF | Taxonomy, English common names | n/a | Per catalogued species | On demand |
+| GBIF species API / OBIS red-list checklist | IUCN Red List category (CR/EN/VU/NT/LC/DD/NE) | Species with an IUCN assessment | Per catalogued species | On demand |
+| Copernicus Marine (GMPE SST) | Secondary SST | Global | Adapter only; needs free credentials | n/a |
+| Project ConvLSTM | 7-day SST forecast (model output) | Pacific Ocean | Issued from the last processed day; weights trained on the NE Pacific | With every refresh |
 
-The Ocean Map starts from a world view, but **SST, forecast, heatwave and risk layers exist only inside the dashed study-region
-outline**. Outside it the UI says "no data" rather than guessing. `GET /api/ocean/regions` and `/api/ocean/coverage` report this
-programmatically; the Ocean Data page shows it per source.
+Everything shown on the Ocean Map comes from these. Where a source has nothing for a place or day the interface says "Data unavailable" or "Insufficient evidence"; it never
+shows zero for missing data.
 
-Data freshness: the last processed observation is shown on every page ("Data status"). The forecast is issued from that day, not
-from today.
+### Refreshing the Pacific data (reproducible, no code changes)
+
+`python scripts/refresh_pacific.py` runs the pipeline in order and is safe to repeat:
+
+1. **sync** (`python -m oceanmind_environment sync --config config.pacific.yaml`): downloads NOAA OISST in two longitude windows (100E-180 and 180-70W) so the 180th meridian is
+   never split, samples every fourth cell, validates every file (units, dimensions, value range, expected days) and merges them onto one contiguous east-longitude axis.
+   Complete years and months are cached under `cache/pacific_oisst/` and never downloaded again; only the recent tail is refreshed. Days the ERDDAP aggregation lacks are taken
+   from the NCEI daily files. The merged store is `data/pacific_oisst/sst.zarr`; it records which days are preliminary and when it was retrieved.
+2. **climate**: ONI and PDO index files.
+3. **build** (`oceanmind_preprocess`): land mask, missing-value handling, climatology and anomaly, features and splits, written to `processed_pacific/`. Skipped when the processed data
+   already reach the latest source day.
+4. **evaluate** (`oceanmind_model evaluate` + `export-dashboard`): forecast and its persistence comparison, marine heatwaves (the current ones and every historical event with its
+   daily footprint), and the point-history files.
+5. **alerts**: heatwave, extreme/rapid/persistent anomaly, ecological-risk, species-exposure and forecast alerts.
+6. **species** (optional, `--species`): OBIS records and IUCN categories for the Pacific watch list.
+
+Freshness: every dataset reports its observation date, the retrieval time of its source and how many days old the newest observation is (current / delayed / stale); the
+interface shows these on Ocean Data and never presents an older date as today.
 
 ## 5. Methods
 

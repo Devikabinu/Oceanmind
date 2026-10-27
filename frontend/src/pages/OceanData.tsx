@@ -7,6 +7,7 @@ import SourceTag from "../components/SourceTag";
 import Status from "../components/Status";
 import { useAsync } from "../hooks/useAsync";
 import { cached } from "../hooks/useCached";
+import EnvDatasetsPanel from "../components/EnvDatasetsPanel";
 import DataQuality from "./DataQuality";
 import DataSources from "./DataSources";
 import Datasets from "./Datasets";
@@ -37,6 +38,23 @@ function SourceCard({ s }: { s: SourceInfo }) {
           <dt className="text-xs font-medium uppercase text-slate-500">Loaded in this project</dt>
           <dd className="text-slate-800">{s.loaded_in_project ?? "Nothing loaded"}</dd>
         </div>
+        {s.update_frequency && <div><dt className="text-xs font-medium uppercase text-slate-500">Update frequency</dt><dd className="text-slate-800">{s.update_frequency}</dd></div>}
+        {s.resolution && <div><dt className="text-xs font-medium uppercase text-slate-500">Resolution</dt><dd className="text-slate-800">{s.resolution}</dd></div>}
+        {s.baseline && <div><dt className="text-xs font-medium uppercase text-slate-500">Baseline for anomalies</dt><dd className="text-slate-800">{s.baseline[0].slice(0, 4)} to {s.baseline[1].slice(0, 4)}</dd></div>}
+        {s.freshness && (
+          <div>
+            <dt className="text-xs font-medium uppercase text-slate-500">Freshness</dt>
+            <dd className="text-slate-800">
+              <span className={`mr-2 rounded px-1.5 py-0.5 text-xs font-semibold ${s.freshness.status === "current" ? "bg-emerald-100 text-emerald-900" : s.freshness.status === "delayed" ? "bg-amber-100 text-amber-900" : "bg-red-100 text-red-900"}`}>{s.freshness.status}</span>
+              {s.freshness.message}
+            </dd>
+          </div>
+        )}
+        {s.last_updated && <div><dt className="text-xs font-medium uppercase text-slate-500">Last updated here</dt><dd className="text-slate-800">{s.last_updated.slice(0, 16).replace("T", " ")} UTC</dd></div>}
+        {s.processing && <div className="md:col-span-2"><dt className="text-xs font-medium uppercase text-slate-500">Processing</dt><dd className="text-slate-800">{s.processing}</dd></div>}
+        {s.limitations && s.limitations.length > 0 && (
+          <div className="md:col-span-2"><dt className="text-xs font-medium uppercase text-slate-500">Limitations</dt><dd className="text-slate-800"><ul className="list-disc pl-5">{s.limitations.map((l) => <li key={l}>{l}</li>)}</ul></dd></div>
+        )}
         {db.registered && (
           <>
             <div><dt className="text-xs font-medium uppercase text-slate-500">Stored datasets / records</dt><dd className="text-slate-800">{db.datasets ?? 0} datasets · {(db.records ?? 0).toLocaleString()} records</dd></div>
@@ -45,9 +63,10 @@ function SourceCard({ s }: { s: SourceInfo }) {
           </>
         )}
       </dl>
-      {s.documentation && (
-        <p className="mt-3 text-xs"><a href={s.documentation} className="underline" target="_blank" rel="noreferrer">Source documentation</a></p>
-      )}
+      <p className="mt-3 flex flex-wrap gap-x-4 text-xs">
+        {s.documentation && <a href={s.documentation} className="underline" target="_blank" rel="noreferrer">Source documentation</a>}
+        {s.url && <a href={s.url} className="break-all underline" target="_blank" rel="noreferrer">Data access point</a>}
+      </p>
     </article>
   );
 }
@@ -201,6 +220,7 @@ export default function OceanData() {
   return (
     <div>
       <PageHeader title="Ocean data">Sources, coverage, stored datasets, ingestion jobs and data-quality reports behind everything in the platform.</PageHeader>
+      <div className="mt-4"><EnvDatasetsPanel /></div>
       <div role="tablist" aria-label="Ocean data views" className="mb-6 mt-4 flex flex-wrap gap-1 border-b border-slate-200">
         {TABS.map((t) => (
           <button

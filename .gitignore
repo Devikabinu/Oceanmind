@@ -62,6 +62,7 @@ processed/model/
 processed/anomaly/
 processed/forecast/
 processed/biodiversity/
+processed_pacific/
 
 # Generated Zarr datasets
 processed/*.zarr
@@ -83,3 +84,7 @@ processed/*.zarr/
 *.temp
 *.swp
 *.swo
+# downloaded NOAA OISST pieces and the merged Pacific store
+cache/
+data/pacific_oisst/
+data/climate_indices/

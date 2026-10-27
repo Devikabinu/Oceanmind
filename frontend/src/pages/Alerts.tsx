@@ -1,10 +1,12 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import AlertCard from "../components/AlertCard";
 import EmptyState from "../components/EmptyState";
 import FilterPanel from "../components/FilterPanel";
 import type { FilterField } from "../components/FilterPanel";
+import ContextBar from "../components/ContextBar";
 import PageHeader from "../components/PageHeader";
+import { useActive } from "../contexts/ActiveSelection";
 import Pagination from "../components/Pagination";
 import { apiClient } from "../api/client";
 import { listAlerts, updateAlertStatus } from "../api/modelOutputs";
@@ -41,7 +43,14 @@ export default function Alerts() {
   const canUpdate = user?.role === "ADMIN" || user?.role === "RESEARCHER";
   const [params] = useSearchParams();
   const openId = params.get("open");
+  const act = useActive();
   const list = usePagedList(listAlerts, PAGE_SIZE);
+  const [panel, setPanel] = useState<Record<string, string>>({});
+  // the shared dataset and region always scope the list, together with the filters of the panel
+  useEffect(() => {
+    list.setFilters({ ...panel, dataset: act.dataset, ...(act.region !== "pacific" ? { region: act.region } : {}) });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [panel, act.dataset, act.region]);
   const [sort, setSort] = useState<"newest" | "severity">("newest");
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [updateError, setUpdateError] = useState<string | null>(null);
@@ -76,7 +85,12 @@ export default function Alerts() {
         {!canUpdate && ` Your role (${user?.role}) has read-only access; updating status requires ADMIN or RESEARCHER.`}
       </PageHeader>
 
-      <FilterPanel fields={FIELDS} onApply={(v) => list.setFilters(toQueryParams(v))} />
+      <div className="mt-3">
+        <ContextBar note="Alerts are listed for the selected dataset and for alerts located inside the selected region." />
+      </div>
+      <div className="mt-3">
+        <FilterPanel fields={FIELDS} onApply={(v) => setPanel(toQueryParams(v))} />
+      </div>
       <div className="mt-3 flex items-center gap-2 text-sm text-slate-700">
         <label htmlFor="alert-sort">Sort this page by</label>
         <select
@@ -103,14 +117,18 @@ export default function Alerts() {
         {list.error && <div className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">Could not load alerts: {list.error}</div>}
         {list.isLoading && items.length === 0 && <p className="text-sm text-slate-500">Loading alerts…</p>}
         {!list.isLoading && !list.error && items.length === 0 && (
-          Object.keys(list.filters).length > 0 ? (
+          Object.keys(panel).length > 0 ? (
             <EmptyState title="No alerts match the filters you applied">
               <p>Alerts exist, but none has this combination of status, severity, type and dates. Try widening the date range or clearing a filter.</p>
             </EmptyState>
           ) : (
-            <EmptyState title="No alerts have been raised yet">
-              <p>Alerts are created when the publish job finds a marine heatwave, a strong SST anomaly, a forecast heat signal or a high species exposure.</p>
-              <p>To create them from the latest data run: python -m app.jobs publish-outputs</p>
+            <EmptyState title={`No alerts for this dataset${act.region !== "pacific" ? " and region" : ""}`}>
+              <p>
+                {act.dataset === "ne_pacific"
+                  ? "Alerts are created when the publish job finds a marine heatwave, a strong SST anomaly, a forecast heat signal or a high species exposure. Run: python -m app.jobs publish-outputs"
+                  : `Alerts for this dataset are raised from its marine-heatwave events and risk areas. Run: python -m app.jobs publish-dataset-alerts --dataset ${act.dataset}`}
+              </p>
+              {act.region !== "pacific" && <p>Try the whole dataset (region “Entire Pacific Ocean”): other regions may have alerts.</p>}
             </EmptyState>
           )
         )}

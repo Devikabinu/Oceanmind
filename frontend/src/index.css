@@ -1,16 +1,61 @@
 @import "tailwindcss";
 
+/* Ocean palette: the neutral scale is re-tinted towards deep marine blue-greys, so every existing slate-* class belongs to the same system. */
+@theme {
+  --color-slate-50: #f1f7f9;
+  --color-slate-100: #e3eef2;
+  --color-slate-200: #cddfe6;
+  --color-slate-300: #aec7d2;
+  --color-slate-400: #7b9bab;
+  --color-slate-500: #55758a;
+  --color-slate-600: #3d5b6d;
+  --color-slate-700: #2b4658;
+  --color-slate-800: #1a3242;
+  --color-slate-900: #0c2231;
+  --color-slate-950: #06161f;
+  --color-deep: #06202f;
+  --color-abyss: #0a3347;
+  --color-tide: #0e5a73;
+  --color-lagoon: #0f8b9d;
+  --color-foam: #c6eef2;
+  --font-sans: "Inter", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+}
+
 body {
   margin: 0;
-  background-color: #f8fafc;
-  color: #0f172a;
+  background-color: #eef5f8;
+  background-image: linear-gradient(180deg, #e6f1f5 0%, #f1f7f9 22rem);
+  background-attachment: fixed;
+  color: #0c2231;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+  letter-spacing: -0.01em;
 }
 
 .sst-overlay {
   image-rendering: pixelated;
 }
 
+/* Leaflet: calmer controls that match the ocean shell */
+.leaflet-container {
+  font-family: var(--font-sans);
+  background: #cfe3ec;
+}
+.leaflet-bar a {
+  color: #0c2231;
+}
+
 :focus-visible {
-  outline: 2px solid #0284c7;
+  outline: 2px solid #0f8b9d;
   outline-offset: 2px;
+}
+
+/* Light-on-dark surfaces (sidebar, map toolbar) need a light focus ring. */
+.on-deep :focus-visible {
+  outline-color: #9be7ef;
 }

@@ -65,6 +65,7 @@ class RiskFactorRead(BaseModel):
     level: str | None
     weight: float
     available: bool
+    reason: str | None = None
 
 
 class SpeciesRiskRead(BaseModel):
@@ -95,6 +96,10 @@ class SpeciesRiskRead(BaseModel):
     forecast_mean_anomaly_c: float | None = None
     recent_records_90d: int | None = None
     latest_record: str | None = None
+    dataset: str | None = None
+    status: str | None = None
+    evidence_completeness: float | None = None
+    unavailable_factors: dict | None = None
     labels: dict = {
         "records": "OBSERVATION (OBIS)",
         "conditions": "OBSERVATION (NOAA OISST) + MODEL OUTPUT (ConvLSTM forecast)",

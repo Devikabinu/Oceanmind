@@ -1,0 +1,9 @@
+# Test configuration: the Pacific pipeline fed by the deterministic stand-in provider (oceanmind_environment.temporary_pacific) instead of the NOAA store,
+# so the preprocessing and heatwave tests run without any download. Not used by the application.
+extends: ../config.pacific.yaml
+
+environment_provider:
+  provider: temporary_pacific
+  time:
+    start: "2012-01-01"
+    end: "2026-10-15"

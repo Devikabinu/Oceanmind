@@ -68,3 +68,12 @@ def outputs(tmp_path, monkeypatch):
     environment.clear_cache()
     yield tmp_path
     environment.clear_cache()
+
+
+@pytest.fixture(autouse=True)
+def _no_real_climate_indices(tmp_path, monkeypatch):
+    """Tests never depend on the climate-index file a developer may have downloaded."""
+    from app.services import climate_indices
+
+    monkeypatch.setattr(climate_indices, "index_file", lambda: tmp_path / "no_indices.json")
+    climate_indices._load_cached.cache_clear()

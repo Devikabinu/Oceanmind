@@ -2,7 +2,9 @@ import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { Link, useParams } from "react-router-dom";
 import { getSpecies, getSpeciesDistribution, getSpeciesObservations, getSpeciesRisk } from "../api/intelligence";
+import { getMap as getEnvMap } from "../api/environment";
 import { getMapLayer } from "../api/monitor";
+import { axisOrigin, toMapLayer } from "../utils/mapCoords";
 import Badge from "../components/Badge";
 import ConservationBadge from "../components/ConservationBadge";
 import EmptyState from "../components/EmptyState";
@@ -14,6 +16,9 @@ import Status from "../components/Status";
 import Term from "../components/Term";
 import WhyPanel from "../components/WhyPanel";
 import { useAsync } from "../hooks/useAsync";
+import ContextBar from "../components/ContextBar";
+import RelatedLinks from "../components/RelatedLinks";
+import { useActive } from "../contexts/ActiveSelection";
 
 type Tag = "observed" | "forecast" | "derived" | "interpretation";
 
@@ -49,11 +54,17 @@ export default function SpeciesDetail() {
   const [showDist, setShowDist] = useState(false);
   const sp = useAsync(() => getSpecies(id), [id]);
   const obs = useAsync(() => getSpeciesObservations(id), [id]);
-  const risk = useAsync(() => getSpeciesRisk(id), [id]);
-  const ctx = useAsync(() => getMapLayer("observed_anomaly", 1), []);
+  const act = useActive();
+  const envDataset = act.dataset === "ne_pacific" ? undefined : act.dataset;
+  const risk = useAsync(() => getSpeciesRisk(id, envDataset), [id, envDataset]);
+  // background layer: the NE export for the NE dataset, otherwise the active dataset's anomaly from the environment API (never the other one)
+  const legacyCtx = useAsync(() => (envDataset ? Promise.resolve(null) : getMapLayer("observed_anomaly", 1)), [envDataset]);
+  const envCtx = useAsync(() => (envDataset ? getEnvMap({ dataset: envDataset, layer: "anomaly", date: act.date ?? "latest", region: "pacific" }) : Promise.resolve(null)), [envDataset, act.date]);
+  const ctxLayer = envDataset ? (envCtx.data && !envCtx.isLoading && envCtx.data.dataset.id === envDataset ? toMapLayer(envCtx.data) : null) : legacyCtx.data;
+  const ctxError = envDataset ? envCtx.error : legacyCtx.error;
   const dist = useAsync(() => (showDist ? getSpeciesDistribution(id) : Promise.resolve(null)), [id, showDist]);
   const s = sp.data;
-  const r = risk.data;
+  const r = risk.data && (risk.data.dataset ?? "ne_pacific") === act.dataset ? risk.data : null;
   const fitTo = useMemo<[[number, number], [number, number]] | null>(() => {
     const pts = obs.data?.items ?? [];
     if (pts.length === 0) return null;
@@ -104,7 +115,7 @@ export default function SpeciesDetail() {
               </div>
             </Section>
 
-            <Section title="Observations" tag="observed" subtitle="Real occurrence records from OBIS (a time-spread sample for the study region). Points show where the species was recorded.">
+            <Section title="Observations" tag="observed" subtitle="Real occurrence records from OBIS (a time-spread selection of records). Points show where the species was recorded.">
               <Status isLoading={obs.isLoading} error={obs.error} hasData={!!obs.data}>
                 {obs.data && obs.data.total === 0 ? (
                   <EmptyState title="No available observations for this species in the loaded region">
@@ -120,7 +131,10 @@ export default function SpeciesDetail() {
                     </div>
                     <div className="mt-4">
                       <SstMap
-                        layer={ctx.data}
+                        layer={ctxLayer}
+                        lonOrigin={envDataset && ctxLayer ? axisOrigin(ctxLayer.lon) : null}
+                        showOutline={!envDataset}
+                        unavailable={!!ctxError}
                         observations={(obs.data?.items ?? []).map((o) => ({ lat: o.latitude, lon: o.longitude, label: `${o.timestamp.slice(0, 10)}${o.max_depth != null ? ` · depth ≤ ${o.max_depth} m` : ""}` }))}
                         distribution={showDist ? dist.data?.geojson : null}
                         fitTo={fitTo}
@@ -128,7 +142,7 @@ export default function SpeciesDetail() {
                         ariaLabel={`Observed distribution of ${s.scientific_name}`}
                       />
                       <p className="mt-1 text-xs text-slate-600">
-                        Yellow dots: <strong>observation points</strong> ({obs.data?.total.toLocaleString()} stored records). Background: observed SST anomaly. Sampling effort is uneven.
+                        Yellow dots: <strong>observation points</strong> ({obs.data?.total.toLocaleString()} stored records). Background: SST anomaly of the selected dataset ({act.dataset}). Sampling effort is uneven.
                       </p>
                     </div>
                   </>
@@ -173,6 +187,7 @@ export default function SpeciesDetail() {
               )}
             </Section>
 
+            <ContextBar showRegion={false} note="Environmental exposure below is computed for the selected dataset." />
             <Section
               title="Potential environmental exposure"
               tag="derived"
@@ -186,7 +201,7 @@ export default function SpeciesDetail() {
                 ) : (
                   r && (
                     <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-                      <Stat label="Observed locations" value={plural(r.observed_locations ?? 0, "grid cell")} note={`${r.n_records.toLocaleString()} records, 0.25° cells`} />
+                      <Stat label="Observed locations" value={plural(r.observed_locations ?? 0, "grid cell")} note={`${r.n_records.toLocaleString()} records, grid cells of the selected dataset`} />
                       <Stat
                         label={<Term k="anomaly">Locations overlapping an SST anomaly</Term>}
                         value={`${r.overlapping_locations ?? 0} of ${r.observed_locations ?? 0}`}
@@ -230,10 +245,11 @@ export default function SpeciesDetail() {
                       measurement of confirmed ecological damage. <Link to="/ecological-risk?tab=method" className="underline">How the score is calculated</Link>
                     </p>
                   </div>
-                  <WhyPanel title={`Why is exposure ${r.level}?`} reasons={r.reasons} classification={r.labels.score} sources={["OBIS (records)", "NOAA OISST v2.1 (observed)", "ConvLSTM (forecast, model output)"]} />
+                  <WhyPanel title={`Why is exposure ${r.level}?`} reasons={r.reasons} classification={r.labels.score} sources={["OBIS (records)", r.labels.conditions]} />
+                  <RelatedLinks to={["map", "heatwaves", "risk"]} />
                 </div>
               ) : (
-                <EmptyState title="No risk indicator for this species">
+                <EmptyState title="Insufficient evidence for a risk indicator">
                   <p>{r?.message ?? "A risk indicator needs recent observations inside the study region."}</p>
                 </EmptyState>
               )}

@@ -19,6 +19,11 @@ class Settings(BaseSettings):
 
     # Where the ML pipeline writes its outputs (metrics, dashboard snapshot). Empty = <repo>/processed.
     PROCESSED_DIR: str = ""
+    # Output of `python -m oceanmind_preprocess build --config config.pacific.yaml` (Pacific-wide processed data). Empty = <repo>/processed_pacific.
+    PROCESSED_PACIFIC_DIR: str = ""
+    # Which processed environmental dataset the environmental endpoints use when the request names none: "ne_pacific" (stored NOAA OISST study
+    # region, the original behaviour) or "pacific" (Pacific-wide processed provider data).
+    ENVIRONMENT_DEFAULT_DATASET: str = "ne_pacific"
 
     NOAA_OISST_BASE_URL: str = (
         "https://psl.noaa.gov/thredds/dodsC/Datasets/noaa.oisst.v2.highres"

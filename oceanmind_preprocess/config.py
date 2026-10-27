@@ -7,6 +7,7 @@ import yaml
 
 REQUIRED = ["paths", "grid", "time", "raw", "missing", "outliers", "climatology", "features",
             "splits", "normalization", "forecast", "anomaly", "biodiversity", "report"]
+RAW_SOURCES = ("stores", "provider")
 
 
 class Cfg(dict):
@@ -25,10 +26,37 @@ class Cfg(dict):
         self[k] = v
 
 
+def _merge(base: dict, over: dict) -> dict:
+    out = dict(base)
+    for k, v in over.items():
+        out[k] = _merge(out[k], v) if isinstance(v, dict) and isinstance(out.get(k), dict) else v
+    return out
+
+
+def _read_yaml(path: Path) -> dict:
+    """Read a YAML config; an `extends: other.yaml` key (relative to this file) is deep-merged underneath it."""
+    with open(path, encoding="utf-8") as f:
+        d = yaml.safe_load(f)
+    parent = d.pop("extends", None)
+    return _merge(_read_yaml((path.parent / parent).resolve()), d) if parent else d
+
+
+def apply_provider_domain(cfg, provider=None) -> Cfg:
+    """For raw.source == 'provider': the processing grid IS the provider's grid. Sets grid.lat_min/lat_max/lon_min/lon_max (cell centres) and
+    grid.resolution from the provider so that no domain coordinates are repeated in the preprocessing config. Longitudes follow the provider's continuous
+    east-positive axis (e.g. 100.5..289.5 for the Pacific), see align.normalize_longitude."""
+    if provider is None:
+        from oceanmind_environment import build_provider  # lazy import: only provider-based configs need it
+        provider = build_provider(cfg)
+    lat, lon = provider.grid()
+    cfg.grid.update(lat_min=float(lat[0]), lat_max=float(lat[-1]), lon_min=float(lon[0]), lon_max=float(lon[-1]),
+                    resolution=float(provider.metadata().resolution_deg))
+    return cfg
+
+
 def load_config(path) -> Cfg:
     path = Path(path).resolve()
-    with open(path, encoding="utf-8") as f:
-        cfg = Cfg(yaml.safe_load(f))
+    cfg = Cfg(_read_yaml(path))
     missing = [k for k in REQUIRED if k not in cfg]
     if missing:
         raise KeyError(f"config {path} is missing sections: {missing}")
@@ -39,4 +67,9 @@ def load_config(path) -> Cfg:
     cfg["config_path"] = str(path)
     if cfg.anomaly.days not in (1, 3):
         raise ValueError("anomaly.days must be 1 or 3")
+    source = cfg.raw.get("source", "stores")
+    if source not in RAW_SOURCES:
+        raise ValueError(f"raw.source must be one of {RAW_SOURCES}, got {source!r}")
+    if source == "provider":
+        apply_provider_domain(cfg)
     return cfg

@@ -22,3 +22,26 @@ WATCHLIST = [
     # other
     "Dosidicus gigas",
 ]
+
+
+# Pacific-wide list (names only; status, taxonomy and records come from OBIS / WoRMS / GBIF-IUCN at sync time): taxa that occur in the tropical, western,
+# central, southern and eastern Pacific and that carry IUCN assessments, so that threatened-species exposure can be assessed across the basin.
+PACIFIC_WATCHLIST = WATCHLIST + [
+    # marine mammals
+    "Balaenoptera borealis", "Balaenoptera omurai", "Physeter macrocephalus", "Eubalaena japonica", "Dugong dugon", "Neophocaena phocaenoides",
+    "Zalophus wollebaeki", "Arctocephalus galapagoensis", "Phocoenoides dalli", "Eumetopias jubatus", "Callorhinus ursinus",
+    # sea turtles
+    "Eretmochelys imbricata", "Natator depressus",
+    # sharks, rays and large fish
+    "Rhincodon typus", "Sphyrna lewini", "Carcharhinus longimanus", "Carcharhinus falciformis", "Manta birostris", "Mobula alfredi",
+    "Thunnus obesus", "Thunnus albacares", "Thunnus alalunga", "Thunnus maccoyii", "Cheilinus undulatus", "Bolbometopon muricatum", "Makaira nigricans",
+    "Istiompax indica", "Xiphias gladius",
+    # seabirds
+    "Phoebastria albatrus", "Spheniscus mendiculus", "Pterodroma phaeopygia", "Fregata minor",
+    # reptiles
+    "Amblyrhynchus cristatus", "Laticauda colubrina",
+    # invertebrates
+    "Tridacna gigas", "Tridacna derasa", "Nautilus pompilius",
+    # reef corals
+    "Acropora millepora", "Acropora hyacinthus", "Pocillopora damicornis", "Fungia fungites", "Galaxea fascicularis",
+]

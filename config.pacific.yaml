@@ -1,0 +1,30 @@
+# Pacific-wide preprocessing: the same pipeline as config.yaml, fed by the configured EnvironmentalDataProvider instead of the NOAA Zarr stores.
+#   python -m oceanmind_preprocess build --config config.pacific.yaml
+# Everything not listed here is inherited from config.yaml. The processing grid is NOT configured here: it is taken from the provider (so the Pacific
+# domain is defined once, under environment_provider in config.yaml). Longitudes are the provider's continuous east-positive axis (100.5 .. 289.5).
+extends: config.yaml
+dataset_id: pacific                    # label of this dataset in the backend (event ids, heatwave and forecast results)
+
+paths:
+  out_dir: processed_pacific            # separate output: the existing NE Pacific processed/ data is left untouched
+
+time:
+  start: "2002-01-01"
+  end: null                             # null = latest day the provider has
+
+raw:
+  source: provider
+  variables:
+    sst: {store: sst, var: sst, scale: 1.0, offset: 0.0, log10: false}    # provider SST is degC; the store name is unused with source: provider
+
+environment_provider:
+  provider: noaa_oisst_pacific          # NOAA OISST v2.1 observations; `python -m oceanmind_environment sync --config config.pacific.yaml` refreshes them
+  time:
+    start: "2002-01-01"                 # first day of the record: a 22-year baseline (2002-2023) for climatology and heatwave thresholds
+    end: null                           # the latest day NOAA has published
+  source:
+    cache_dir: cache/pacific_oisst      # downloaded NetCDF pieces (complete years/months are kept and never fetched again)
+    store: data/pacific_oisst/sst.zarr  # validated, merged daily SST on one contiguous east-longitude axis
+
+biodiversity:
+  enabled: false                        # OBIS gridding assumes a -180..180 axis; handled in the Pacific biodiversity task, not here

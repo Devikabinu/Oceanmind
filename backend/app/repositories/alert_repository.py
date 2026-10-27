@@ -1,12 +1,18 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.models.alert import Alert
 from app.models.enums import AlertSeverity, AlertStatus
 from app.repositories._pagination import paginate
+
+
+def dataset_filter(dataset: str):
+    """Alerts of one dataset. Alerts written before datasets existed carry no `dataset` in details and belong to the NE Pacific."""
+    col = Alert.details["dataset"].as_string()
+    return or_(Alert.details.is_(None), col.is_(None), col == "ne_pacific") if dataset == "ne_pacific" else col == dataset
 
 
 class AlertRepository:
@@ -25,8 +31,15 @@ class AlertRepository:
         alert_type: str | None = None,
         start_date: datetime | None = None,
         end_date: datetime | None = None,
+        dataset: str | None = None,
+        region: str | None = None,
     ) -> tuple[list[Alert], int]:
         stmt = select(Alert)
+        if dataset is not None:
+            stmt = stmt.where(dataset_filter(dataset))
+        if region is not None and region != "pacific":
+            # alerts of datasets that record the regions their location lies in (details.regions); older alerts have none
+            stmt = stmt.where(Alert.details["regions"].as_string().like(f'%"{region}"%'))
         if status is not None:
             stmt = stmt.where(Alert.status == status)
         if severity is not None:

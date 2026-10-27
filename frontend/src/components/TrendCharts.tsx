@@ -13,9 +13,9 @@ const RANGES = [
 ];
 
 /** Whole-region history: mean SST anomaly and the share of ocean area in a marine heatwave. */
-export default function TrendCharts() {
+export default function TrendCharts({ dataset }: { dataset?: string }) {
   const [days, setDays] = useState(365);
-  const { data, error, isLoading } = useAsync(() => getHeatwaveSeries(days), [days]);
+  const { data, error, isLoading } = useAsync(() => getHeatwaveSeries(days, dataset), [days, dataset]);
   const rows = data?.dates.map((d, i) => ({
     date: d,
     anomaly: data.mean_anomaly[i],
@@ -25,7 +25,7 @@ export default function TrendCharts() {
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold text-slate-900">Trends in the study region</h2>
+        <h2 className="text-sm font-semibold text-slate-900">{dataset && dataset !== "ne_pacific" ? "Trends across the dataset domain" : "Trends in the study region"}</h2>
         <div className="flex items-center gap-2">
           <div role="group" aria-label="Time range" className="flex overflow-hidden rounded-md border border-slate-300 text-sm">
             {RANGES.map((r) => (

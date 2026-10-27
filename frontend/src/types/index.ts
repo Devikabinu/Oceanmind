@@ -175,6 +175,19 @@ export interface AlertDetails {
   species?: { aphia_id: number | null; scientific_name: string; common_name?: string | null }[];
   evidence?: Record<string, unknown>;
   evidence_summary?: { label: string; value: string }[];
+  /** Present on alerts of datasets other than the NE Pacific (e.g. pacific). Alerts without it belong to the NE Pacific. */
+  dataset?: string;
+  region_id?: string;
+  event_id?: string;
+  date?: string;
+  location?: { lat: number; lon_180: number };
+  biodiversity_evidence?: "observed" | "insufficient_coverage" | "none_recorded" | "unavailable" | null;
+  conservation_sensitive?: { aphia_id: number | null; scientific_name: string; common_name?: string | null; iucn_category?: string | null }[];
+  risk?: { score: number | null; level: string | null; status?: string; evidence_completeness?: number | null; top_driver?: string } | null;
+  is_observational?: boolean;
+  provider?: { provider_id: string; is_observational: boolean; description: string } | null;
+  kind?: string;
+  narrative?: { headline: string; sections: { id: string; title: string; text: string; bullets: string[] }[] } | null;
 }
 
 export interface Alert {

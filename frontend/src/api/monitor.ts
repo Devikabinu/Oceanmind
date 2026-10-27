@@ -40,8 +40,12 @@ export interface HeatwaveEvent {
   duration_days: number;
   cells: number;
   area_km2: number;
-  centroid: { lat: number; lon: number };
+  /** `lon` is on the dataset axis (continuous east longitude for the Pacific); `lon_180` is the same place in -180..180. */
+  centroid: { lat: number; lon: number; lon_180?: number };
   bbox: { lat_min: number; lat_max: number; lon_min: number; lon_max: number };
+  dataset?: string;
+  /** Only with a region filter: how many of the event's cells lie inside that region. */
+  cells_in_region?: number;
   current_anomaly_c: number;
   max_anomaly_c: number;
   category: number;
@@ -108,6 +112,10 @@ export interface RiskFactor {
   level: "LOW" | "MEDIUM" | "HIGH" | null;
   weight: number;
   available: boolean;
+  /** Why the factor is missing for this dataset or cell (only sent when available is false). */
+  reason?: string;
+  /** Provenance caveat of an available factor (e.g. the forecast model was not retrained for this dataset). */
+  note?: string;
 }
 
 export interface CellAssessment {

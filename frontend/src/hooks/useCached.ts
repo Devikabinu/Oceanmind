@@ -18,3 +18,8 @@ export function cached<T>(key: string, load: () => Promise<T>): Promise<T> {
 export function useOverview() {
   return useAsync<Overview>(() => cached("overview", getOverview), []);
 }
+
+/** Forget every cached request (used when the data service changes under the page, and by tests). */
+export function clearCached(): void {
+  store.clear();
+}

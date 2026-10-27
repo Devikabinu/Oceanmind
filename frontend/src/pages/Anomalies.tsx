@@ -13,6 +13,9 @@ import Term from "../components/Term";
 import { REGION_LABELS } from "../components/RegionForecast";
 import { useAsync } from "../hooks/useAsync";
 import { useOverview } from "../hooks/useCached";
+import { useActive } from "../contexts/ActiveSelection";
+import ContextBar from "../components/ContextBar";
+import PacificAnomalies from "../components/PacificAnomalies";
 
 const SELECT = "rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-800";
 const REGION_TEST: Record<RegionName, (h: Hotspot) => boolean> = {
@@ -30,7 +33,7 @@ function explain(h: Hotspot): string {
   return `${base}${persist}.`;
 }
 
-export default function Anomalies() {
+function NeAnomalies() {
   const overview = useOverview();
   const range = overview.data?.data_status.available_dates;
   const [mode, setMode] = useState<"observed" | "forecast">("observed");
@@ -67,6 +70,7 @@ export default function Anomalies() {
         Where the sea is warmer or colder than normal. An <Term k="anomaly">anomaly</Term> is today&apos;s temperature minus the 2012–2023 average for the same day of the
         year. Choose an observed day or a forecast day, filter by region and severity, and select an area to inspect it.
       </PageHeader>
+      <div className="mt-3"><ContextBar showRegion={false} note="NE Pacific study-region anomalies. Switch the dataset for the Pacific-wide anomaly view." /></div>
 
       <div className="mt-4 flex flex-wrap items-end gap-3 rounded-lg border border-slate-200 bg-white p-3">
         <label className="flex flex-col gap-1 text-xs font-medium text-slate-600">
@@ -202,11 +206,16 @@ export default function Anomalies() {
           Stored detector output (database) <SourceTag kind="derived" />
         </summary>
         <p className="mt-2 text-sm text-slate-600">
-          Per-observation rows written by the publish job: a simple departure detector (|anomaly| ≥ 1 °C versus the 2012–2023 average) on a 1° sample of the last 14
+          Per-observation rows written by the publish job: a simple departure detector (|anomaly| ≥ 1 °C versus the 2012–2023 average) on a 1° subset of the last 14
           days of NOAA OISST.
         </p>
         <AnomalyDetections />
       </details>
     </div>
   );
+}
+
+export default function Anomalies() {
+  const act = useActive();
+  return act.dataset === "ne_pacific" ? <NeAnomalies /> : <PacificAnomalies />;
 }

@@ -15,7 +15,7 @@ import pandas as pd
 import xarray as xr
 
 from . import biodiversity, features, normalize, validate, windows
-from .align import land_mask_from, load_aligned, make_grid
+from .align import land_mask_from, load_aligned, make_grid, source_is_provider
 from .clean import preclean
 from .missing import compute_limits
 from .splits import print_sizes, resolve_splits
@@ -31,14 +31,18 @@ def _channels(cfg, names, spec, kind):
     return chans
 
 
-def build(cfg) -> dict:
+def build(cfg, provider=None) -> dict:
+    """provider: optional EnvironmentalDataProvider to read from instead of the raw Zarr stores (also selected by raw.source: provider in the config)."""
+    if provider is not None:
+        from .config import apply_provider_domain
+        apply_provider_domain(cfg, provider)
     out = Path(cfg.paths.out_dir)
     for sub in ("cubes", "forecast", "anomaly", "biodiversity", "figures"):
         (out / sub).mkdir(parents=True, exist_ok=True)
 
     # 1. alignment ---------------------------------------------------------------------------
     lat, lon = make_grid(cfg)
-    al = load_aligned(cfg, lat, lon, cfg.time.start, cfg.time.end, include_nrt=cfg.raw.use_nrt_in_build)
+    al = load_aligned(cfg, lat, lon, cfg.time.start, cfg.time.end, include_nrt=cfg.raw.use_nrt_in_build, provider=provider)
     times = al.times
     log.info("aligned %d variables on %dx%d grid, %s .. %s (%d days)", len(al.data), len(lat), len(lon),
              times[0].date(), times[-1].date(), len(times))
@@ -123,7 +127,13 @@ def build(cfg) -> dict:
                                    "anomaly_days": len(ai), "anomaly_skipped": a_skip}
         print(f"  {name:<5} forecast windows kept {len(fi):>5} (skipped {f_skip}); anomaly days kept {len(ai):>5} (skipped {a_skip})")
 
+    source_meta = {}
+    if source_is_provider(cfg, provider):  # record which provider produced these data, so consumers can label them truthfully
+        from oceanmind_environment import build_provider
+        source_meta = {"source": (provider or build_provider(cfg)).metadata().to_dict(),
+                       "lon_convention": "east longitude, continuous (labels may exceed 180 for domains crossing the antimeridian)"}
     (out / "meta.json").write_text(json.dumps({
+        **source_meta,
         "lat": lat.tolist(), "lon": lon.tolist(), "resolution": cfg.grid.resolution,
         "channels": names,
         "lookback_days": fc.lookback_days, "horizons": list(fc.horizons),

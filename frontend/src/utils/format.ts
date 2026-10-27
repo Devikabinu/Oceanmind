@@ -12,6 +12,8 @@ export function formatCoord(value: number): string {
 export function errorMessage(err: unknown): string {
   if (axios.isAxiosError(err)) {
     const detail = err.response?.data?.detail;
+    // /api/environment errors carry {code, message}; the message already says what is wrong (unknown region, no data for a date, dataset not built)
+    if (err.response && detail && typeof detail === "object" && !Array.isArray(detail) && typeof detail.message === "string") return detail.message;
     if (typeof detail === "string" && err.response && err.response.status < 500) return detail;
     if (Array.isArray(detail)) {
       return detail
@@ -50,4 +52,10 @@ export function emptyListMessage(noun: string, isFiltered: boolean, howToLoad: s
   return isFiltered
     ? `No ${noun} match the filters you applied. Try widening or clearing them.`
     : `No ${noun} are stored yet. ${howToLoad}`;
+}
+
+/** Reader-facing name of an environmental data source: the real dataset name when the provider reports one, never an internal identifier. */
+export function providerLabel(p: { provider_id?: string; description?: string; source?: { short_name?: string; dataset?: string } | null } | null | undefined): string {
+  if (!p) return "Unknown source";
+  return p.source?.short_name ?? p.source?.dataset ?? p.description ?? p.provider_id ?? "Unknown source";
 }

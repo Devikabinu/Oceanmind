@@ -8,6 +8,9 @@ import Term from "../components/Term";
 import PageHeader from "../components/PageHeader";
 import Status from "../components/Status";
 import { useAsync } from "../hooks/useAsync";
+import { getDatasets, getForecast } from "../api/environment";
+import type { EnvironmentDatasetAvailable } from "../api/environment";
+import { cached } from "../hooks/useCached";
 
 const COLORS = { convlstm: "#2563eb", persistence: "#f59e0b", climatology: "#94a3b8" } as const;
 const NAMES = { convlstm: "ConvLSTM", persistence: "Persistence", climatology: "Climatology" } as const;
@@ -251,6 +254,49 @@ function Content({ p }: { p: Performance }) {
   );
 }
 
+/** The same ConvLSTM applied to another dataset: evaluated separately, on that dataset's own test split. Not a validation of the Pacific ocean. */
+function DatasetApplication() {
+  const ds = useAsync(() => cached("env-datasets", getDatasets), []);
+  const other = ds.data?.datasets.find((d): d is EnvironmentDatasetAvailable => d.available && d.id !== "ne_pacific");
+  const fc = useAsync(() => (other ? getForecast(other.id, "pacific") : Promise.resolve(null)), [other?.id]);
+  if (!other) return null;
+  const p = fc.data?.performance;
+  return (
+    <section className="mt-8 rounded-lg bg-white/70 p-4 ring-1 ring-slate-200" aria-labelledby="pac-perf">
+      <h2 id="pac-perf" className="border-l-4 border-lagoon pl-3 text-lg font-semibold text-slate-900">The same model applied to the {other.name}</h2>
+      <p className="mt-1 text-sm text-slate-700">
+        The scores above were measured on observed NOAA OISST data of the NE Pacific. For the {other.id} dataset the model was <strong>not retrained</strong>; it was only run and scored on
+        that dataset&apos;s own held-out test period. Those numbers describe how the model behaves on {other.provider.is_observational ? "that" : "modelled"} data, not how well it
+        predicts the real Pacific.
+      </p>
+      <Status isLoading={fc.isLoading} error={fc.error} hasData={!!p} emptyMessage="This model has not been evaluated on this dataset, so no Pacific performance is claimed.">
+        {p && fc.data && (
+          <>
+            <div className="mt-3 overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <caption className="sr-only">Measured error on the {other.id} dataset</caption>
+                <thead className="text-xs uppercase text-slate-600">
+                  <tr><th scope="col" className="py-1 pr-3">Model</th><th scope="col" className="py-1 pr-3">Mean MAE °C</th><th scope="col" className="py-1">Mean RMSE °C</th></tr>
+                </thead>
+                <tbody>
+                  {Object.entries(p.models).map(([k, m]) => (
+                    <tr key={k} className="border-t border-slate-100"><td className="py-1 pr-3 font-medium capitalize">{k === "convlstm" ? "ConvLSTM" : k}</td><td className="py-1 pr-3">{m.mean_mae.toFixed(3)}</td><td className="py-1">{m.mean_rmse.toFixed(3)}</td></tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="mt-2 text-sm text-slate-800">
+              Test period {p.date_range[0]} to {p.date_range[1]} ({p.n_windows} windows). {p.beats_persistence ? "The model beat persistence at every horizon." : "The model did not beat persistence at every horizon on this dataset."}{" "}
+              MAE skill versus persistence: {p.mae_skill_vs_persistence.map((s) => `${(s * 100).toFixed(1)}%`).join(", ")}.
+            </p>
+            <p className="mt-1 text-xs text-slate-600">Training period, validation period and checkpoint are those of the NE Pacific model: {fc.data.model.origin?.trained_on ?? "unknown"}.</p>
+          </>
+        )}
+      </Status>
+    </section>
+  );
+}
+
 export default function ModelPerformance() {
   const { data, error, isLoading } = useAsync(getPerformance, []);
   return (
@@ -262,6 +308,7 @@ export default function ModelPerformance() {
       <Status isLoading={isLoading} error={error} hasData={!!data} emptyMessage="No evaluation found. Run: python -m oceanmind_model evaluate">
         {data && <Content p={data} />}
       </Status>
+      <DatasetApplication />
     </div>
   );
 }

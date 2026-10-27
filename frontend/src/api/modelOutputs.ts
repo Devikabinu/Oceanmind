@@ -42,7 +42,7 @@ export interface AlertSummary {
   open_high_or_critical: number;
 }
 
-export async function getAlertSummary(): Promise<AlertSummary> {
-  const { data } = await apiClient.get<AlertSummary>("/alerts/summary");
+export async function getAlertSummary(dataset?: string): Promise<AlertSummary> {
+  const { data } = await apiClient.get<AlertSummary>("/alerts/summary", { params: { dataset } });
   return data;
 }

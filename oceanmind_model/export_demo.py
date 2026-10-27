@@ -106,5 +106,7 @@ def export_dashboard_snapshot(cfg, checkpoint="best", split="test", out_subdir="
     }
     (out / "snapshot.json").write_text(json.dumps(info, indent=2))
     from .heatwaves import compute_heatwaves
-    info["heatwave"] = compute_heatwaves(root, forecast_latest=land_nan(fc_latest), out_subdir=out_subdir)["latest_date"]
+    dataset_id = cfg.get("dataset_id", "ne_pacific")          # config.pacific.yaml sets dataset_id: pacific (event ids and results are labelled with it)
+    prefix = "mhw" if dataset_id == "ne_pacific" else f"mhw-{dataset_id}"
+    info["heatwave"] = compute_heatwaves(root, forecast_latest=land_nan(fc_latest), out_subdir=out_subdir, dataset=dataset_id, id_prefix=prefix)["latest_date"]
     return info

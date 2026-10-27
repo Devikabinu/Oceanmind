@@ -20,6 +20,7 @@ from app.api.v1.ecological_risk import router as ecological_risk_router
 from app.api.v1.heatwaves import router as heatwaves_router
 from app.api.v1.monitor import router as monitor_router
 from app.api.v1.ocean import router as ocean_router
+from app.api.v1.environment import router as environment_router
 from app.api.v1.ocean_observations import router as ocean_observations_router
 from app.api.v1.risk import router as risk_router
 from app.api.v1.species import router as species_router
@@ -98,3 +99,4 @@ app.include_router(species_router, prefix="/api")
 app.include_router(heatwaves_router, prefix="/api")
 app.include_router(ecological_risk_router, prefix="/api")
 app.include_router(ocean_router, prefix="/api")
+app.include_router(environment_router, prefix="/api")

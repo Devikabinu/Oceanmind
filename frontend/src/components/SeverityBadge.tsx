@@ -13,7 +13,7 @@ export default function SeverityBadge({ level }: { level: Level }) {
   return (
     <span className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-semibold ring-1 ring-inset ${s.cls}`}>
       <span aria-hidden>{s.icon}</span>
-      {level}
+      {level === "MEDIUM" ? "MODERATE" : level}
     </span>
   );
 }

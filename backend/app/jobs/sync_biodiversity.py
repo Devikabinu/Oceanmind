@@ -37,6 +37,11 @@ def _study_bounds() -> dict:
         return {"lat_min": 20.0, "lat_max": 50.0, "lon_min": -160.0, "lon_max": -120.0}
 
 
+def pacific_parts() -> list[dict]:
+    """Pacific basin as two longitude windows (100E..180 and 180..70W) so the OBIS polygon never crosses the antimeridian."""
+    return [dict(lat_min=-60.0, lat_max=65.0, lon_min=100.0, lon_max=180.0), dict(lat_min=-60.0, lat_max=65.0, lon_min=-180.0, lon_max=-70.0)]
+
+
 def _windows(end: date, months: int, n: int) -> list[tuple[date, date]]:
     total_days = int(months * 30.44)
     step = total_days // n
@@ -52,7 +57,7 @@ def resolve_aphia(name: str) -> int | None:
 
 
 def sync_species(db: Session, user_id: uuid.UUID, name: str, months: int = 24, windows: int = 8,
-                 per_window: int = 120, today: date | None = None, force: bool = False) -> dict:
+                 per_window: int = 120, today: date | None = None, force: bool = False, region: str = "ne_pacific") -> dict:
     today = today or datetime.now(timezone.utc).date()
     aphia = resolve_aphia(name)
     if aphia is None:
@@ -62,16 +67,19 @@ def sync_species(db: Session, user_id: uuid.UUID, name: str, months: int = 24, w
         BiodiversityObservation.species_aphia_id == aphia)).scalar_one()
     already_done = db.execute(select(func.count()).select_from(IngestionJob).where(
         IngestionJob.params["scientific_name"].as_string() == sp.scientific_name,
+        IngestionJob.params["region"].as_string() == region,
         IngestionJob.status == IngestionJobStatus.COMPLETED)).scalar_one()
-    if (existing or already_done) and not force:
+    if already_done and not force:
         return {"species": sp.scientific_name, "aphia_id": aphia, "status": "skipped_already_synced", "records_existing": existing, "previous_completed_syncs": already_done}
-    b = _study_bounds()
+    parts = pacific_parts() if region == "pacific" else [_study_bounds()]
+    b = {"lat_min": min(p["lat_min"] for p in parts), "lat_max": max(p["lat_max"] for p in parts),
+         "lon_min": min(p["lon_min"] for p in parts), "lon_max": max(p["lon_max"] for p in parts)}
     adapter = OBISAdapter()
     source = DataSourceRepository(db).get_by_name(adapter.data_source_name)
     if source is None:
         raise RuntimeError("OBIS data source is not registered (start the API once to seed data sources)")
     spans = _windows(today, months, windows)
-    dataset = Dataset(data_source_id=source.id, name=f"OBIS {sp.scientific_name} {spans[0][0]}_{spans[-1][1]} (sampled)",
+    dataset = Dataset(data_source_id=source.id, name=f"OBIS {sp.scientific_name} {spans[0][0]}_{spans[-1][1]} (selected records)",
                       kind=adapter.dataset_kind, temporal_start=datetime.combine(spans[0][0], datetime.min.time(), tzinfo=timezone.utc),
                       temporal_end=datetime.combine(spans[-1][1], datetime.min.time(), tzinfo=timezone.utc),
                       min_latitude=b["lat_min"], max_latitude=b["lat_max"], min_longitude=b["lon_min"], max_longitude=b["lon_max"],
@@ -79,7 +87,7 @@ def sync_species(db: Session, user_id: uuid.UUID, name: str, months: int = 24, w
     db.add(dataset)
     db.flush()
     job = IngestionJob(data_source_id=source.id, dataset_id=dataset.id, created_by=user_id, status=IngestionJobStatus.RUNNING,
-                       params={"scientific_name": sp.scientific_name, "windows": windows, "max_records_per_window": per_window,
+                       params={"scientific_name": sp.scientific_name, "region": region, "windows": windows, "max_records_per_window": per_window,
                                "start_date": spans[0][0].isoformat(), "end_date": spans[-1][1].isoformat(),
                                "min_latitude": b["lat_min"], "max_latitude": b["lat_max"],
                                "min_longitude": b["lon_min"], "max_longitude": b["lon_max"]},
@@ -91,14 +99,15 @@ def sync_species(db: Session, user_id: uuid.UUID, name: str, months: int = 24, w
     t0 = time.perf_counter()
     try:
         for start, end in spans:
-            p = IngestionParams(start_date=start, end_date=end, min_latitude=b["lat_min"], max_latitude=b["lat_max"],
-                                min_longitude=b["lon_min"], max_longitude=b["lon_max"],
-                                scientific_name=sp.scientific_name, max_records=per_window)
-            m, n = adapter.run(p, dataset.id, db)
-            loaded += n
-            for f in ("records_read", "records_valid", "records_rejected", "missing_values", "duplicate_records",
-                      "invalid_coordinates", "invalid_timestamps", "outliers", "schema_mismatches"):
-                setattr(total, f, getattr(total, f) + getattr(m, f))
+            for part in parts:
+                p = IngestionParams(start_date=start, end_date=end, min_latitude=part["lat_min"], max_latitude=part["lat_max"],
+                                    min_longitude=part["lon_min"], max_longitude=part["lon_max"],
+                                    scientific_name=sp.scientific_name, max_records=per_window)
+                m, n = adapter.run(p, dataset.id, db)
+                loaded += n
+                for f in ("records_read", "records_valid", "records_rejected", "missing_values", "duplicate_records",
+                          "invalid_coordinates", "invalid_timestamps", "outliers", "schema_mismatches"):
+                    setattr(total, f, getattr(total, f) + getattr(m, f))
         job.status = IngestionJobStatus.COMPLETED
     except Exception as exc:  # noqa: BLE001 - recorded on the job
         logger.exception("OBIS sync failed for %s", name)
@@ -116,7 +125,7 @@ def sync_species(db: Session, user_id: uuid.UUID, name: str, months: int = 24, w
                              missing_values=total.missing_values, duplicate_records=total.duplicate_records,
                              invalid_coordinates=total.invalid_coordinates, invalid_timestamps=total.invalid_timestamps,
                              invalid_sst=0, outliers=total.outliers, schema_mismatches=total.schema_mismatches,
-                             details={"sampling": f"{windows} time windows x up to {per_window} OBIS records, study region"}))
+                             details={"selection": f"{windows} time windows x up to {per_window} OBIS records per area, {region} study area"}))
     db.commit()
     return {"species": sp.scientific_name, "aphia_id": aphia, "status": job.status.value, "records_loaded": loaded,
             "iucn": sp.iucn_category}

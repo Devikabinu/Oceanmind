@@ -25,9 +25,15 @@ def list_alerts(
     alert_type: str | None = Query(None, min_length=1, max_length=50),
     start_date: datetime | None = None,
     end_date: datetime | None = None,
+    dataset: str | None = Query(None, description="Only alerts of this dataset (ne_pacific, pacific). Omitted: all datasets."),
+    region: str | None = Query(None, description="Only alerts located inside this region id (see /api/environment/regions)"),
     db: Session = Depends(get_db),
 ) -> PaginatedAlerts:
     validate_filter_ranges(start_date=start_date, end_date=end_date)
+    if region is not None:
+        from app.services import geo_regions as geo
+        if region not in geo.REGIONS:
+            raise HTTPException(status_code=404, detail={"code": "unknown_region", "message": f"unknown region {region!r}; valid regions: {', '.join(geo.REGIONS)}"})
     items, total = AlertRepository(db).list_paginated(
         page=page,
         page_size=page_size,
@@ -36,18 +42,24 @@ def list_alerts(
         alert_type=alert_type,
         start_date=start_date,
         end_date=end_date,
+        dataset=dataset,
+        region=region,
     )
     return PaginatedAlerts(items=items, total=total, page=page, page_size=page_size)
 
 
 @router.get("/summary", dependencies=[Depends(get_current_user)])
-def alert_summary(db: Session = Depends(get_db)) -> dict:
+def alert_summary(dataset: str | None = None, db: Session = Depends(get_db)) -> dict:
     """Counts for the dashboard: by status, and open (NEW + ACKNOWLEDGED) alerts by severity."""
     from sqlalchemy import func, select
 
     from app.models.alert import Alert
 
-    rows = db.execute(select(Alert.status, Alert.severity, func.count()).group_by(Alert.status, Alert.severity)).all()
+    from app.repositories.alert_repository import dataset_filter
+    stmt = select(Alert.status, Alert.severity, func.count()).group_by(Alert.status, Alert.severity)
+    if dataset is not None:
+        stmt = stmt.where(dataset_filter(dataset))
+    rows = db.execute(stmt).all()
     by_status = {s.value: 0 for s in AlertStatus}
     open_by_sev = {s.value: 0 for s in AlertSeverity}
     for st, sev, n in rows:

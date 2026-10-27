@@ -110,10 +110,13 @@ def test_ocean_regions_distinguish_covered_basin(client, outputs):
 
 def test_ocean_coverage_lists_sources_without_claiming_global_data(client, outputs):
     items = {i["id"]: i for i in client.get("/api/ocean/coverage", headers=auth_headers(client)).json()["items"]}
-    assert set(items) == {"noaa", "copernicus", "obis", "convlstm"}
-    assert "Study region" in items["noaa"]["loaded_in_project"]
+    assert set(items) == {"noaa", "copernicus", "obis", "convlstm", "oni", "pdo"}
+    assert "study region" in items["noaa"]["loaded_in_project"].lower()
     assert "No records loaded" in items["obis"]["loaded_in_project"]
-    assert items["convlstm"]["coverage_source"] == "Study region only"
+    assert "study region" in items["convlstm"]["coverage_source"].lower()
+    for key in ("noaa", "obis", "oni", "pdo"):                                   # every source says where to get it, how often it changes and what it cannot do
+        assert items[key]["update_frequency"] and items[key]["limitations"] and items[key]["url"]
+    assert items["oni"]["status_kind"] == "integrated" and "sync-climate-indices" in items["oni"]["status_label"]
 
 
 def test_heatwave_summary_explains_the_method_and_disclaims_official_status(client, outputs):

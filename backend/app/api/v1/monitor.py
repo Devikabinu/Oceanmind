@@ -38,8 +38,19 @@ def map_layer(
     layer: LayerName = "forecast",
     horizon: int = Query(1, ge=1, le=svc.N_HORIZONS),
     date: str | None = Query(None, pattern=_DATE, description="Observed layers only: a date inside the stored 2-year history"),
+    dataset: str | None = Query(None, description="Optional processed dataset (e.g. 'pacific'). Omitted: the legacy NE Pacific dashboard export, unchanged."),
+    region: str | None = Query(None, description="With `dataset`: a named region id (see /api/environment/regions)"),
+    max_cells: int = Query(20000, ge=100, le=200000),
     db: Session = Depends(get_db),
 ) -> dict:
+    if dataset is not None or region is not None:
+        if layer not in ("observed", "observed_anomaly"):
+            raise HTTPException(status_code=422, detail="dataset/region apply to the observed and observed_anomaly layers only")
+        from app.api.v1.environment import guard
+        from app.services import environment_store as es
+        out = guard(es.map_response, dataset, "sst" if layer == "observed" else "anomaly", date, region, None, max_cells)
+        out.update(layer=layer, horizon=horizon, coverage_stats=out["coverage"], coverage=out["dataset"]["extent"])
+        return out
     return _guard(svc.map_layer, layer, horizon, db, date)
 
 

@@ -10,7 +10,12 @@ Method (per ocean cell, daily SST):
 Differences from the published definition: a 12-year (not 30-year) baseline, the project's climatology, and no sea-ice /
 land handling beyond the existing mask. It is therefore a *project-level* indicator, not an official classification.
 
-Outputs (processed/<out_subdir>/dashboard/): heatwave_state.npz, heatwave.json, point_history.npz."""
+The detector is dataset-agnostic: it reads one processed directory (meta.json, stats.json, land_mask.npy, cubes/, climatology.zarr) and takes its grid, baseline
+period (stats.json train_period) and provenance (meta.json source) from it, so the NE Pacific study region and the Pacific-wide dataset use the same code. Longitudes
+stay on the dataset's own continuous axis (the Pacific domain crosses the antimeridian in the interior of the array, so connected events are never split there).
+
+Outputs (<processed dir>/<out_subdir>/dashboard/): heatwave_state.npz, heatwave.json, point_history.npz. Run once per dataset as a build step
+(`python -m oceanmind_model heatwaves --config <config>`), never per API request."""
 from __future__ import annotations
 
 import json
@@ -47,9 +52,9 @@ def _load_series(root: Path, meta: dict, stats: dict):
     return np.concatenate(parts), dates[0].append(dates[1]).append(dates[2]), ocean
 
 
-def _baseline_threshold(sst, dates, pct=90.0, half_window=5, smooth=31):
+def _baseline_threshold(sst, dates, pct=90.0, half_window=5, smooth=31, baseline_end=BASELINE_END):
     """(366,H,W) seasonally varying percentile threshold from baseline days only."""
-    base = np.asarray(dates <= pd.Timestamp(BASELINE_END))
+    base = np.asarray(dates <= pd.Timestamp(baseline_end))
     doy = dates.dayofyear.to_numpy()
     sb, db = sst[base], doy[base]
     thr = np.full((366,) + sst.shape[1:], np.nan, dtype="float32")
@@ -90,9 +95,9 @@ def detect_runs(exceed, min_days=5, max_gap=2):
     return mhw, rl
 
 
-def _percentile_of_latest(sst, dates, latest_idx):
+def _percentile_of_latest(sst, dates, latest_idx, baseline_end=BASELINE_END):
     """Percentile (0-100) of the latest day's SST among baseline-year SSTs within +-5 days of the same day-of-year."""
-    base = np.asarray(dates <= pd.Timestamp(BASELINE_END))
+    base = np.asarray(dates <= pd.Timestamp(baseline_end))
     doy = dates.dayofyear.to_numpy()
     d = int(doy[latest_idx])
     dist = np.minimum(np.abs(doy - d), 366 - np.abs(doy - d))
@@ -107,11 +112,17 @@ def _percentile_of_latest(sst, dates, latest_idx):
     return pct.astype("float32")
 
 
-def compute_heatwaves(root, forecast_latest=None, out_subdir="model"):
-    """forecast_latest: optional (7,H,W) degC forecast for the 7 days after the last observed day."""
+def compute_heatwaves(root, forecast_latest=None, out_subdir="model", dataset="ne_pacific", id_prefix="mhw"):
+    """forecast_latest: optional (7,H,W) degC forecast for the 7 days after the last observed day.
+    dataset / id_prefix: label stored with the results and used in event ids (the NE Pacific defaults keep the original ids)."""
+    import time
+    t_start = time.perf_counter()
     root = Path(root)
     meta = json.loads((root / "meta.json").read_text())
     stats = json.loads((root / "stats.json").read_text())
+    baseline = stats.get("train_period") or ["2012-01-01", BASELINE_END]
+    baseline_end = baseline[1]
+    baseline_years = pd.Timestamp(baseline_end).year - pd.Timestamp(baseline[0]).year + 1
     lat = np.asarray(meta["lat"], dtype="float64")
     lon = np.asarray(meta["lon"], dtype="float64")
     res = float(meta["resolution"])
@@ -123,7 +134,7 @@ def compute_heatwaves(root, forecast_latest=None, out_subdir="model"):
         warnings.simplefilter("ignore")
         clim = np.asarray(xr.open_zarr(root / "climatology.zarr")["sst"].sel(dayofyear=np.arange(1, 367)).values, dtype="float32")
     doy = dates.dayofyear.to_numpy()
-    thr = _baseline_threshold(sst, dates)
+    thr = _baseline_threshold(sst, dates, baseline_end=baseline_end)
     anom = sst - clim[doy - 1]
     exceed = sst > thr[doy - 1]
     exceed &= ~np.isnan(sst)
@@ -156,7 +167,7 @@ def compute_heatwaves(root, forecast_latest=None, out_subdir="model"):
         cum = np.where(inrun, cum + np.nan_to_num(anom[last - back]), cum)
     delta = np.maximum(thr[doy[last] - 1] - clim[doy[last] - 1], 0.1)
     category = np.where(active, np.clip(np.floor(peak / delta), 1, 4), 0).astype("int8")
-    pct = _percentile_of_latest(sst, dates, last)
+    pct = _percentile_of_latest(sst, dates, last, baseline_end)
 
     fc_above = None
     if forecast_latest is not None:
@@ -167,6 +178,7 @@ def compute_heatwaves(root, forecast_latest=None, out_subdir="model"):
     # connected events at the latest day
     lab, n = ndimage.label(active, structure=np.ones((3, 3)))
     events = []
+    label_of: dict[str, int] = {}
     for k in range(1, n + 1):
         m = lab == k
         cells = int(m.sum())
@@ -176,14 +188,16 @@ def compute_heatwaves(root, forecast_latest=None, out_subdir="model"):
         start = dates[int(np.median(start_idx[m]))]
         cat_val = int(np.clip(np.round(np.nanmean(peak[m] / delta[m])), 1, 4))
         ev = {
-            "id": f"mhw-{dates[last].date()}-{len(events) + 1}",
+            "id": f"{id_prefix}-{dates[last].date()}-{len(events) + 1}",
+            "dataset": dataset,
             "status": "ACTIVE",
             "start_date": str(start.date()),
             "last_observed_date": str(dates[last].date()),
             "duration_days": int(last - int(np.median(start_idx[m])) + 1),
             "cells": cells,
             "area_km2": round(float(area[m].sum()), 0),
-            "centroid": {"lat": round(float(lat[ii].mean()), 2), "lon": round(float(lon[jj].mean()), 2)},
+            "centroid": {"lat": round(float(lat[ii].mean()), 2), "lon": round(float(lon[jj].mean()), 2),
+                         "lon_180": round(float(((lon[jj].mean() + 180) % 360) - 180), 2)},
             "bbox": {"lat_min": round(float(lat[ii].min()) - res / 2, 3), "lat_max": round(float(lat[ii].max()) + res / 2, 3),
                      "lon_min": round(float(lon[jj].min()) - res / 2, 3), "lon_max": round(float(lon[jj].max()) + res / 2, 3)},
             "current_anomaly_c": round(float(np.nanmean(cur_anom[m])), 2),
@@ -199,10 +213,13 @@ def compute_heatwaves(root, forecast_latest=None, out_subdir="model"):
             "historical_percentile": round(float(np.nanmean(pct[m])), 1),
             "forecast_still_above_p90_day7": None if fc_above is None else round(float(fc_above[-1][m].mean()), 3),
         }
+        ev["_k"] = k
         events.append(ev)
     events.sort(key=lambda e: -e["area_km2"])
+    label_grid = np.zeros((H, W), dtype="int16")          # event number (1-based, in the order of `events`) of every cell of an event on the latest day
     for i, e in enumerate(events, 1):
-        e["id"] = f"mhw-{dates[last].date()}-{i}"
+        e["id"] = f"{id_prefix}-{dates[last].date()}-{i}"
+        label_grid[lab == e.pop("_k")] = i
 
     # historical comparison
     years = {}
@@ -219,19 +236,31 @@ def compute_heatwaves(root, forecast_latest=None, out_subdir="model"):
 
     out = root / out_subdir / "dashboard"
     out.mkdir(parents=True, exist_ok=True)
+    from . import heatwave_history
+    history = heatwave_history.build(mhw, anom, thr, clim, doy, dates, lat, lon, area, dataset, id_prefix, out, label_grid)
     np.savez_compressed(
         out / "heatwave_state.npz",
         run_len=run_len.astype("int16"), active=active, cur_anom=cur_anom.astype("float32"),
         peak_anom=peak, category=category, percentile=np.where(ocean, pct, np.nan).astype("float32"),
         thr_latest=thr[doy[last] - 1], clim_latest=clim[doy[last] - 1],
         fc_above=np.zeros((0, H, W), bool) if fc_above is None else fc_above,
+        event_label=label_grid,
     )
+    src = meta.get("source")
     info = {
+        "dataset": dataset,
         "method": "Simplified Hobday et al. (2016): SST above a seasonally varying 90th percentile for >= 5 days "
-                  "(gaps <= 2 days bridged). Baseline 2012-2023 (12 years, not the recommended 30). "
+                  f"(gaps <= 2 days bridged). Baseline {baseline[0][:4]}-{baseline_end[:4]} ({baseline_years} years, not the recommended 30). "
                   "Project-level indicator, not an official classification.",
-        "baseline": ["2012-01-01", BASELINE_END],
-        "data_source": "NOAA OISST v2.1 (processed study-region cubes)",
+        "baseline": [baseline[0], baseline_end],
+        "threshold": {"method": "seasonal percentile of baseline SST in an 11-day window, smoothed with a 31-day circular moving average",
+                      "percentile": 90.0, "window_days": 11, "smoothing_days": 31},
+        "min_duration_days": 5, "max_gap_days": 2,
+        "data_source": (src.get("provider_id") if src else None) or "NOAA OISST v2.1 (processed study-region cubes)",
+        "source": src,
+        "is_observational": bool(src.get("is_observational")) if src else True,
+        "grid": {"resolution_deg": res, "lat_min": float(lat.min()), "lat_max": float(lat.max()), "lon_min": float(lon.min()), "lon_max": float(lon.max()),
+                 "lon_convention": meta.get("lon_convention", "east longitude, -180..180")},
         "latest_date": str(dates[last].date()),
         "ocean_area_km2": round(ocean_area, 0),
         "active_area_km2": round(cur_area, 0),
@@ -239,6 +268,7 @@ def compute_heatwaves(root, forecast_latest=None, out_subdir="model"):
         "active_area_historical_rank_pct": rank_pct,
         "min_event_cells": MIN_EVENT_CELLS,
         "events": events,
+        "historical_events": len(history),
         "yearly": years,
         "daily": {
             "dates": [str(d.date()) for d in dates],
@@ -247,6 +277,7 @@ def compute_heatwaves(root, forecast_latest=None, out_subdir="model"):
             "heatwave_area_km2": np.round(mhw_area, 0).tolist(),
         },
     }
+    info["build"] = {"seconds": round(time.perf_counter() - t_start, 1), "days": int(T), "cells": int(H * W)}
     (out / "heatwave.json").write_text(json.dumps(info))
 
     # per-cell history for point charts (int16 centi-degrees, -32768 = missing)

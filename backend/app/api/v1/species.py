@@ -108,9 +108,18 @@ def species_observations(
 
 
 @router.get("/{aphia_id}/risk", response_model=SpeciesRiskRead)
-def species_risk(aphia_id: int, db: Session = Depends(get_db)) -> dict:
+def species_risk(aphia_id: int, dataset: str | None = None, db: Session = Depends(get_db)) -> dict:
+    """Potential environmental exposure of the species' recent records. `dataset` (e.g. pacific) selects the environmental inputs; omitted = NE Pacific."""
     row = _get(db, aphia_id)
     try:
+        if dataset not in (None, risk_service.LEGACY_DATASET):
+            from app.api.v1.environment import guard
+            inp = guard(risk_service.inputs_for, dataset, None)
+            out = risk_service.species_assessment(db, inp, row.aphia_id, row.scientific_name)
+            gen = inp.source.get("is_observational") is False
+            out["labels"] = {"records": "OBSERVATION (OBIS)", "conditions": f"{inp.source.get('provider_id', dataset)} ({'dataset provider; not a satellite-observation record' if gen else 'observational'})",
+                             "score": "DERIVED METRIC (project environmental risk indicator; potential exposure, not proof of harm)"}
+            return out
         return risk_service.species_assessment(db, load_env(), row.aphia_id, row.scientific_name)
     except OutputsUnavailable as exc:
         raise HTTPException(status_code=503, detail=str(exc))

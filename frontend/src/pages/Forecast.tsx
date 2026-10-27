@@ -11,6 +11,9 @@ import Term from "../components/Term";
 import TrendCharts from "../components/TrendCharts";
 import WhyPanel from "../components/WhyPanel";
 import { useAsync } from "../hooks/useAsync";
+import ContextBar from "../components/ContextBar";
+import PacificForecast from "../components/PacificForecast";
+import { useActive } from "../contexts/ActiveSelection";
 import { useOverview } from "../hooks/useCached";
 
 function Verification() {
@@ -78,7 +81,7 @@ function Verification() {
   );
 }
 
-export default function Forecast() {
+function NeForecast() {
   const overview = useOverview();
   const o = overview.data;
   const fcLines = o?.interpretation.filter((l) => l.startsWith("The model expects") || l.startsWith("Latest observed")) ?? [];
@@ -88,6 +91,10 @@ export default function Forecast() {
         What does the model expect? The ConvLSTM neural network predicts sea surface temperature for the next 7 days from the last 7 observed days. Pick a region, a
         forecast day or click the map for a single location.
       </PageHeader>
+
+      <div className="mt-3">
+        <ContextBar showRegion={false} note="NE Pacific study-region forecast. Switch the dataset for the Pacific-wide forecast." />
+      </div>
 
       {fcLines.length > 0 && (
         <div className="mt-4">
@@ -112,4 +119,9 @@ export default function Forecast() {
       </div>
     </div>
   );
+}
+
+export default function Forecast() {
+  const act = useActive();
+  return act.dataset === "ne_pacific" ? <NeForecast /> : <PacificForecast />;
 }

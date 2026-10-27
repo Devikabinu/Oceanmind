@@ -24,6 +24,8 @@ time:
   end: null                             # null = last reference date
 
 raw:
+  source: stores                        # stores = Zarr stores under raw_dir (NOAA OISST); provider = an EnvironmentalDataProvider (see environment_provider below)
+  provider_chunk_days: 366              # source: provider only; days read from the provider per request (bounds memory)
   final_pattern: "{store}_final.zarr"
   nrt_pattern: "{store}_nrt.zarr"
   use_nrt_in_build: false               # training data: FINAL only. Inference always uses NRT where FINAL is missing.
@@ -123,3 +125,20 @@ training:
   huber_delta: 1.0
   device: auto                          # auto | cpu | cuda
   seed: 0
+
+environment_provider:                   # environmental data source (oceanmind_environment). Swap the provider here; nothing else repeats these values.
+  provider: temporary_pacific           # GENERATED development data, not observations. A real Pacific provider replaces this later.
+  domain:                               # Pacific basin; longitudes are east longitude 0..360 so the domain is contiguous across the antimeridian
+    lat_min: -60.0
+    lat_max: 65.0
+    lon_min: 100.0                      # 100E
+    lon_max: 290.0                      # 70W
+  resolution_deg: 1.0                   # cell size in degrees (0.5 is also practical); cell centres sit at half-steps from the domain minimum
+  temporal_resolution: 1D
+  time:
+    start: "2012-01-01"
+    end: "2026-10-15"                   # latest available timestamp of the generated record (fixed, not "today")
+  seed: 20261015                        # fixes every generated field
+  mask:
+    source: builtin_polygons            # coarse continent polygons + non-Pacific exclusion boxes (oceanmind_environment/pacific_mask.py)
+

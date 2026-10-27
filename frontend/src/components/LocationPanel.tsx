@@ -1,4 +1,6 @@
 import type { ReactNode } from "react";
+import { getPoint } from "../api/environment";
+import type { EnvironmentLayer, EnvironmentPoint } from "../api/environment";
 import { getHistory, getLocation } from "../api/monitor";
 import { useAsync } from "../hooks/useAsync";
 import EmptyState from "./EmptyState";
@@ -23,20 +25,108 @@ function Row({ label, value, note }: { label: ReactNode; value: ReactNode; note?
   );
 }
 
+
+function PanelShell({ place, children }: { place: string; children: ReactNode }) {
+  return (
+    <section aria-label="Selected location" className="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-slate-200">
+      <div className="on-deep bg-gradient-to-r from-deep to-tide px-4 py-2.5 text-white">
+        <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-cyan-100/90">Selected location</div>
+        <div className="text-lg font-semibold tabular-nums">{place}</div>
+      </div>
+      <div className="space-y-4 p-4">{children}</div>
+    </section>
+  );
+}
+
+function Meta({ fresh }: { fresh: EnvironmentPoint }) {
+  const gen = !fresh.provider.is_observational;
+  return (
+    <dl className="space-y-1 border-t border-slate-200 pt-3 text-xs text-slate-600">
+      <div className="flex justify-between gap-3"><dt>Dataset</dt><dd className="text-right font-medium text-slate-800">{fresh.dataset.name}</dd></div>
+      <div className="flex justify-between gap-3"><dt>Date</dt><dd className="font-medium text-slate-800">{fresh.date}</dd></div>
+      <div className="flex justify-between gap-3"><dt>Source</dt><dd className="text-right font-medium text-slate-800">{fresh.provider.provider_id}</dd></div>
+      <div className="flex justify-between gap-3">
+        <dt>Data status</dt>
+        <dd className={`rounded px-1.5 py-0.5 font-semibold ${gen ? "bg-amber-100 text-amber-900" : "bg-emerald-100 text-emerald-900"}`}>
+          {gen ? "Modelled dataset" : "Observational"}
+        </dd>
+      </div>
+      <p className="pt-1 text-slate-500">Marine-heatwave, ecological-risk and forecast evidence for this place is on the linked pages below.</p>
+    </dl>
+  );
+}
+
 /** What is known about one clicked location, with the evidence and a plain-language reading. */
-export default function LocationPanel({ point }: { point: { lat: number; lon: number } | null }) {
-  const loc = useAsync(() => (point ? getLocation(point.lat, point.lon) : Promise.resolve(null)), [point?.lat, point?.lon]);
+export interface EnvironmentSelection {
+  dataset: string;
+  /** The date the map is currently showing (null while it is still loading). */
+  date: string | null;
+  layer: EnvironmentLayer;
+}
+
+/** `environment`: look the point up in that /api/environment dataset (date and layer as shown on the map). Without it: the NE Pacific dashboard lookup. */
+export default function LocationPanel({ point, environment }: { point: { lat: number; lon: number } | null; environment?: EnvironmentSelection }) {
+  const env = useAsync(
+    () => (point && environment?.date ? getPoint(environment.dataset, point.lat, point.lon, environment.date, environment.layer) : Promise.resolve(null)),
+    [point?.lat, point?.lon, environment?.dataset, environment?.date, environment?.layer],
+  );
+  const loc = useAsync(() => (point && !environment ? getLocation(point.lat, point.lon) : Promise.resolve(null)), [point?.lat, point?.lon, !!environment]);
   const hist = useAsync(
-    () => (point && loc.data?.in_coverage && loc.data.is_ocean ? getHistory(point.lat, point.lon, 180) : Promise.resolve(null)),
-    [point?.lat, point?.lon, loc.data?.in_coverage, loc.data?.is_ocean],
+    () => (point && !environment && loc.data?.in_coverage && loc.data.is_ocean ? getHistory(point.lat, point.lon, 180) : Promise.resolve(null)),
+    [point?.lat, point?.lon, !!environment, loc.data?.in_coverage, loc.data?.is_ocean],
   );
 
   if (!point) {
     return (
-      <div className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600">
-        <div className="text-xs font-medium uppercase tracking-wide text-slate-600">Selected location</div>
-        <p className="mt-2">Click anywhere on the map to see sea surface temperature, anomaly, forecast, risk and marine-heatwave status for that spot.</p>
+      <div className="rounded-xl bg-white p-4 text-sm text-slate-600 shadow-sm ring-1 ring-slate-200">
+        <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-600">Selected location</div>
+        <p className="mt-2">{environment ? "Click anywhere on the map to see the sea surface temperature and anomaly of that grid cell on the selected date." : "Click anywhere on the map to see sea surface temperature, anomaly, forecast, risk and marine-heatwave status for that spot."}</p>
       </div>
+    );
+  }
+  if (environment) {
+    const e = env.data;
+    const place = `${Math.abs(point.lat).toFixed(2)}° ${point.lat >= 0 ? "N" : "S"} · ${Math.abs(point.lon).toFixed(2)}° ${point.lon < 0 ? "W" : "E"}`;
+    // only show a result that belongs to this click, date and dataset
+    const fresh = e && !env.isLoading && e.dataset.id === environment.dataset && e.date === environment.date && e.query.lat === point.lat && e.query.lon === point.lon ? e : null;
+    if (env.error) return <div role="alert" className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">Location data unavailable: {env.error}</div>;
+    if (!fresh) {
+      return (
+        <PanelShell place={place}>
+          <p role="status" className="text-sm text-slate-600">Loading location…</p>
+        </PanelShell>
+      );
+    }
+    if (fresh.status !== "valid") {
+      const title =
+        fresh.status === "land" ? "Land" : fresh.status === "missing" ? "No data for this ocean cell on this date" : "Outside this dataset";
+      return (
+        <PanelShell place={place}>
+          <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-3">
+            <div className="text-sm font-semibold text-slate-900">{title}</div>
+            <p className="mt-1 text-sm text-slate-700">{fresh.message}</p>
+          </div>
+          <Meta fresh={fresh} />
+        </PanelShell>
+      );
+    }
+    return (
+      <PanelShell place={place}>
+        {fresh.cell && <p className="-mt-1 text-xs text-slate-500">Matched grid cell {fresh.cell.lat.toFixed(2)}° N · {Math.abs(fresh.cell.lon_180).toFixed(2)}° {fresh.cell.lon_180 < 0 ? "W" : "E"}</p>}
+        <div>
+          <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-600"><Term k="sst">Sea surface temperature</Term></div>
+          <div className="text-4xl font-semibold tracking-tight text-slate-900">{fresh.sst == null ? "–" : `${fresh.sst.toFixed(1)} °C`}</div>
+        </div>
+        <div>
+          <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-600"><Term k="anomaly">Anomaly</Term> (difference from normal)</div>
+          <div className={`text-3xl font-semibold tracking-tight ${fresh.anomaly == null ? "text-slate-500" : fresh.anomaly > 0.5 ? "text-orange-700" : fresh.anomaly < -0.5 ? "text-sky-800" : "text-slate-900"}`}>
+            {fresh.anomaly == null ? "–" : `${signed(fresh.anomaly)} °C`}
+            {fresh.anomaly != null && <span className="ml-2 text-sm font-medium">{fresh.anomaly > 0.5 ? "warmer than normal" : fresh.anomaly < -0.5 ? "colder than normal" : "near normal"}</span>}
+          </div>
+          {fresh.anomaly == null && fresh.message && <p className="text-xs text-slate-600">{fresh.message}</p>}
+        </div>
+        <Meta fresh={fresh} />
+      </PanelShell>
     );
   }
   if (loc.isLoading && !loc.data) return <div className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600">Loading location…</div>;
