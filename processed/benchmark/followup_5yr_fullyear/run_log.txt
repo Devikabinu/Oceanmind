@@ -1,0 +1,328 @@
+  read 2012 from https://psl.noaa.gov/thredds/dodsC/Datasets/noaa.oisst.v2.highres/sst.day.mean.2012.nc
+  read 2013 from https://psl.noaa.gov/thredds/dodsC/Datasets/noaa.oisst.v2.highres/sst.day.mean.2013.nc
+  read 2014 from https://psl.noaa.gov/thredds/dodsC/Datasets/noaa.oisst.v2.highres/sst.day.mean.2014.nc
+  read 2015 from https://psl.noaa.gov/thredds/dodsC/Datasets/noaa.oisst.v2.highres/sst.day.mean.2015.nc
+  read 2016 from https://psl.noaa.gov/thredds/dodsC/Datasets/noaa.oisst.v2.highres/sst.day.mean.2016.nc
+  read 2017 from https://psl.noaa.gov/thredds/dodsC/Datasets/noaa.oisst.v2.highres/sst.day.mean.2017.nc
+  read 2018 from https://psl.noaa.gov/thredds/dodsC/Datasets/noaa.oisst.v2.highres/sst.day.mean.2018.nc
+  read 2019 from https://psl.noaa.gov/thredds/dodsC/Datasets/noaa.oisst.v2.highres/sst.day.mean.2019.nc
+  read 2020 from https://psl.noaa.gov/thredds/dodsC/Datasets/noaa.oisst.v2.highres/sst.day.mean.2020.nc
+  read 2021 from https://psl.noaa.gov/thredds/dodsC/Datasets/noaa.oisst.v2.highres/sst.day.mean.2021.nc
+  read 2022 from https://psl.noaa.gov/thredds/dodsC/Datasets/noaa.oisst.v2.highres/sst.day.mean.2022.nc
+  read 2023 from https://psl.noaa.gov/thredds/dodsC/Datasets/noaa.oisst.v2.highres/sst.day.mean.2023.nc
+  read 2024 from https://psl.noaa.gov/thredds/dodsC/Datasets/noaa.oisst.v2.highres/sst.day.mean.2024.nc
+  read 2025 from https://psl.noaa.gov/thredds/dodsC/Datasets/noaa.oisst.v2.highres/sst.day.mean.2025.nc
+  read 2026 from https://psl.noaa.gov/thredds/dodsC/Datasets/noaa.oisst.v2.highres/sst.day.mean.2026.nc
+grid 32 x 40 at 0.5 deg, 1280 ocean cells of 1280; 5399 days 2012-01-01..2026-10-12
+  history  3025 days  2012-01-01 .. 2020-04-12
+  train    1826 days  2020-04-13 .. 2025-04-12
+  val       183 days  2025-04-13 .. 2025-10-12
+  test      365 days  2025-10-13 .. 2026-10-12
+  gap fill: {'pct_missing_before': 0.0, 'pct_of_missing_filled': 0.0, 'pct_missing_after': 0.0}
+  windows train 1813 (skipped 0)
+  windows val    170 (skipped 0)
+  windows test   352 (skipped 0)
+{
+ "benchmark_block": {
+  "start": "2020-04-13",
+  "end": "2026-10-12",
+  "days": 2374,
+  "continuous": true
+ },
+ "split_dates": {
+  "train": [
+   "2020-04-13",
+   "2025-04-12"
+  ],
+  "val": [
+   "2025-04-13",
+   "2025-10-12"
+  ],
+  "test": [
+   "2025-10-13",
+   "2026-10-12"
+  ]
+ },
+ "windows": {
+  "train": 1813,
+  "val": 170,
+  "test": 352
+ }
+}
+/Users/tanishashinthray/Documents/Oceanmind/scripts/benchmark/run_benchmark.py:184: RuntimeWarning: Mean of empty slice
+  m["mean_acc"] = float(np.nanmean(m["acc"]))
+[train] cnn_only seed 0  params 127,913
+    epoch  1 train 0.00856 val 0.01129 (5.7s) *
+    epoch  2 train 0.00794 val 0.01119 (5.1s) *
+    epoch  3 train 0.00781 val 0.01180 (4.8s)
+    epoch  4 train 0.00772 val 0.01071 (4.7s) *
+    epoch  5 train 0.00759 val 0.01069 (4.7s) *
+    epoch  6 train 0.00748 val 0.01098 (5.0s)
+    epoch  7 train 0.00749 val 0.01047 (4.8s) *
+    epoch  8 train 0.00742 val 0.01101 (4.4s)
+    epoch  9 train 0.00730 val 0.01100 (4.3s)
+    epoch 10 train 0.00726 val 0.01097 (4.8s)
+    epoch 11 train 0.00721 val 0.01136 (5.2s)
+    epoch 12 train 0.00719 val 0.01112 (4.5s)
+  -> test RMSE 0.2860  MAE 0.2165  ACC 0.8747  (58s, best epoch 7)
+[train] lstm_only seed 0  params 125,895
+    epoch  1 train 0.03380 val 0.02373 (4.9s) *
+    epoch  2 train 0.01422 val 0.01778 (2.8s) *
+    epoch  3 train 0.01183 val 0.01708 (2.7s) *
+    epoch  4 train 0.01164 val 0.01694 (2.8s) *
+    epoch  5 train 0.01144 val 0.01602 (3.5s) *
+    epoch  6 train 0.00965 val 0.01305 (3.3s) *
+    epoch  7 train 0.00854 val 0.01336 (3.2s)
+    epoch  8 train 0.00832 val 0.01294 (2.8s) *
+    epoch  9 train 0.00814 val 0.01344 (3.0s)
+    epoch 10 train 0.00804 val 0.01424 (3.0s)
+    epoch 11 train 0.00805 val 0.01354 (2.9s)
+    epoch 12 train 0.00793 val 0.01506 (3.6s)
+    epoch 13 train 0.00783 val 0.01394 (2.8s)
+  -> test RMSE 0.3320  MAE 0.2533  ACC 0.8378  (41s, best epoch 8)
+[train] hybrid_convlstm seed 0  params 127,239
+    epoch  1 train 0.00888 val 0.01127 (14.2s) *
+    epoch  2 train 0.00800 val 0.01113 (13.9s) *
+    epoch  3 train 0.00786 val 0.01158 (13.3s)
+    epoch  4 train 0.00777 val 0.01101 (13.3s) *
+    epoch  5 train 0.00762 val 0.01070 (13.3s) *
+    epoch  6 train 0.00749 val 0.01130 (13.3s)
+    epoch  7 train 0.00743 val 0.01081 (14.0s)
+    epoch  8 train 0.00726 val 0.01119 (15.0s)
+    epoch  9 train 0.00706 val 0.01088 (15.4s)
+    epoch 10 train 0.00697 val 0.01121 (14.4s)
+  -> test RMSE 0.3007  MAE 0.2287  ACC 0.8619  (140s, best epoch 5)
+[train] cnn_only seed 1  params 127,913
+    epoch  1 train 0.00869 val 0.01209 (4.9s) *
+    epoch  2 train 0.00799 val 0.01114 (4.4s) *
+    epoch  3 train 0.00774 val 0.01131 (4.7s)
+    epoch  4 train 0.00768 val 0.01088 (4.8s) *
+    epoch  5 train 0.00758 val 0.01153 (4.9s)
+    epoch  6 train 0.00755 val 0.01097 (4.7s)
+    epoch  7 train 0.00748 val 0.01058 (5.4s) *
+    epoch  8 train 0.00743 val 0.01143 (5.2s)
+    epoch  9 train 0.00735 val 0.01113 (4.7s)
+    epoch 10 train 0.00729 val 0.01193 (5.5s)
+    epoch 11 train 0.00726 val 0.01068 (4.8s)
+    epoch 12 train 0.00715 val 0.01160 (5.1s)
+  -> test RMSE 0.2992  MAE 0.2281  ACC 0.8616  (59s, best epoch 7)
+[train] lstm_only seed 1  params 125,895
+    epoch  1 train 0.03339 val 0.02359 (4.0s) *
+    epoch  2 train 0.01418 val 0.01782 (3.0s) *
+    epoch  3 train 0.01183 val 0.01718 (3.3s) *
+    epoch  4 train 0.01165 val 0.01710 (3.4s) *
+    epoch  5 train 0.01165 val 0.01719 (3.5s)
+    epoch  6 train 0.01165 val 0.01735 (4.7s)
+    epoch  7 train 0.01164 val 0.01693 (5.3s) *
+    epoch  8 train 0.01165 val 0.01696 (3.5s)
+    epoch  9 train 0.01165 val 0.01703 (3.5s)
+    epoch 10 train 0.01165 val 0.01711 (3.7s)
+    epoch 11 train 0.01165 val 0.01712 (3.2s)
+    epoch 12 train 0.01165 val 0.01729 (3.0s)
+  -> test RMSE 0.3306  MAE 0.2433  ACC 0.8601  (44s, best epoch 7)
+[train] hybrid_convlstm seed 1  params 127,239
+    epoch  1 train 0.00858 val 0.01167 (15.0s) *
+    epoch  2 train 0.00789 val 0.01108 (15.1s) *
+    epoch  3 train 0.00766 val 0.01131 (13.6s)
+    epoch  4 train 0.00751 val 0.01064 (13.3s) *
+    epoch  5 train 0.00736 val 0.01156 (13.2s)
+    epoch  6 train 0.00726 val 0.01039 (13.3s) *
+    epoch  7 train 0.00718 val 0.01011 (13.3s) *
+    epoch  8 train 0.00705 val 0.01124 (13.2s)
+    epoch  9 train 0.00694 val 0.01158 (13.3s)
+    epoch 10 train 0.00680 val 0.01272 (14.0s)
+    epoch 11 train 0.00677 val 0.01167 (15.5s)
+    epoch 12 train 0.00665 val 0.01170 (15.2s)
+  -> test RMSE 0.3071  MAE 0.2318  ACC 0.8522  (168s, best epoch 7)
+[train] cnn_only seed 2  params 127,913
+    epoch  1 train 0.00878 val 0.01175 (6.7s) *
+    epoch  2 train 0.00808 val 0.01160 (4.9s) *
+    epoch  3 train 0.00779 val 0.01118 (4.7s) *
+    epoch  4 train 0.00772 val 0.01229 (4.7s)
+    epoch  5 train 0.00759 val 0.01077 (4.6s) *
+    epoch  6 train 0.00751 val 0.01042 (4.3s) *
+    epoch  7 train 0.00750 val 0.01145 (4.5s)
+    epoch  8 train 0.00750 val 0.01083 (4.6s)
+    epoch  9 train 0.00737 val 0.01051 (6.5s)
+    epoch 10 train 0.00730 val 0.01159 (4.5s)
+    epoch 11 train 0.00721 val 0.01076 (4.7s)
+  -> test RMSE 0.2764  MAE 0.2082  ACC 0.8856  (55s, best epoch 6)
+[train] lstm_only seed 2  params 125,895
+    epoch  1 train 0.03619 val 0.02399 (3.1s) *
+    epoch  2 train 0.01409 val 0.01779 (4.3s) *
+    epoch  3 train 0.01124 val 0.01591 (3.3s) *
+    epoch  4 train 0.00964 val 0.01307 (3.4s) *
+    epoch  5 train 0.00882 val 0.01275 (3.6s) *
+    epoch  6 train 0.00870 val 0.01359 (3.7s)
+    epoch  7 train 0.00840 val 0.01382 (5.5s)
+    epoch  8 train 0.00847 val 0.01397 (4.0s)
+    epoch  9 train 0.00830 val 0.01345 (3.9s)
+    epoch 10 train 0.00823 val 0.01425 (4.6s)
+  -> test RMSE 0.2982  MAE 0.2243  ACC 0.8722  (39s, best epoch 5)
+[train] hybrid_convlstm seed 2  params 127,239
+    epoch  1 train 0.00870 val 0.01159 (14.6s) *
+    epoch  2 train 0.00802 val 0.01157 (14.8s) *
+    epoch  3 train 0.00779 val 0.01155 (14.9s) *
+    epoch  4 train 0.00771 val 0.01139 (13.6s) *
+    epoch  5 train 0.00747 val 0.01169 (13.4s)
+    epoch  6 train 0.00735 val 0.01076 (13.6s) *
+    epoch  7 train 0.00724 val 0.01115 (13.7s)
+    epoch  8 train 0.00715 val 0.01061 (13.3s) *
+    epoch  9 train 0.00700 val 0.01025 (13.3s) *
+    epoch 10 train 0.00691 val 0.01133 (13.3s)
+    epoch 11 train 0.00677 val 0.01110 (13.5s)
+    epoch 12 train 0.00671 val 0.01108 (13.5s)
+    epoch 13 train 0.00660 val 0.01168 (13.5s)
+    epoch 14 train 0.00647 val 0.01247 (13.7s)
+  -> test RMSE 0.2826  MAE 0.2115  ACC 0.8765  (193s, best epoch 9)
+[train] cnn_only seed 3  params 127,913
+    epoch  1 train 0.00859 val 0.01125 (5.6s) *
+    epoch  2 train 0.00806 val 0.01139 (5.6s)
+    epoch  3 train 0.00783 val 0.01123 (5.1s) *
+    epoch  4 train 0.00771 val 0.01132 (5.6s)
+    epoch  5 train 0.00766 val 0.01086 (4.7s) *
+    epoch  6 train 0.00755 val 0.01201 (4.7s)
+    epoch  7 train 0.00745 val 0.01205 (4.7s)
+    epoch  8 train 0.00741 val 0.01091 (4.9s)
+    epoch  9 train 0.00728 val 0.01162 (4.7s)
+    epoch 10 train 0.00731 val 0.01041 (5.4s) *
+    epoch 11 train 0.00725 val 0.01106 (4.7s)
+    epoch 12 train 0.00723 val 0.01113 (4.5s)
+    epoch 13 train 0.00708 val 0.01222 (5.1s)
+    epoch 14 train 0.00707 val 0.01109 (4.6s)
+    epoch 15 train 0.00702 val 0.01065 (4.7s)
+  -> test RMSE 0.2935  MAE 0.2248  ACC 0.8674  (75s, best epoch 10)
+[train] lstm_only seed 3  params 125,895
+    epoch  1 train 0.03315 val 0.02335 (3.2s) *
+    epoch  2 train 0.01411 val 0.01776 (3.4s) *
+    epoch  3 train 0.01131 val 0.01538 (3.7s) *
+    epoch  4 train 0.00942 val 0.01307 (4.5s) *
+    epoch  5 train 0.00858 val 0.01277 (4.3s) *
+    epoch  6 train 0.00838 val 0.01243 (4.5s) *
+    epoch  7 train 0.00826 val 0.01308 (4.5s)
+    epoch  8 train 0.00814 val 0.01314 (3.4s)
+    epoch  9 train 0.00808 val 0.01436 (3.5s)
+    epoch 10 train 0.00807 val 0.01245 (3.3s)
+    epoch 11 train 0.00799 val 0.01352 (3.6s)
+  -> test RMSE 0.3026  MAE 0.2296  ACC 0.8655  (42s, best epoch 6)
+[train] hybrid_convlstm seed 3  params 127,239
+    epoch  1 train 0.00869 val 0.01160 (13.4s) *
+    epoch  2 train 0.00801 val 0.01123 (13.7s) *
+    epoch  3 train 0.00779 val 0.01089 (14.7s) *
+    epoch  4 train 0.00764 val 0.01146 (13.3s)
+    epoch  5 train 0.00751 val 0.01041 (13.7s) *
+    epoch  6 train 0.00732 val 0.01102 (14.1s)
+    epoch  7 train 0.00716 val 0.01198 (13.4s)
+    epoch  8 train 0.00705 val 0.01105 (13.4s)
+    epoch  9 train 0.00693 val 0.01164 (15.7s)
+    epoch 10 train 0.00688 val 0.01081 (13.6s)
+  -> test RMSE 0.2850  MAE 0.2160  ACC 0.8766  (139s, best epoch 5)
+[train] cnn_only seed 4  params 127,913
+    epoch  1 train 0.00867 val 0.01230 (5.0s) *
+    epoch  2 train 0.00800 val 0.01081 (6.0s) *
+    epoch  3 train 0.00788 val 0.01180 (5.0s)
+    epoch  4 train 0.00773 val 0.01104 (4.8s)
+    epoch  5 train 0.00769 val 0.01098 (4.9s)
+    epoch  6 train 0.00759 val 0.01104 (4.9s)
+    epoch  7 train 0.00753 val 0.01130 (4.9s)
+  -> test RMSE 0.2793  MAE 0.2101  ACC 0.8823  (35s, best epoch 2)
+[train] lstm_only seed 4  params 125,895
+    epoch  1 train 0.03315 val 0.02386 (3.1s) *
+    epoch  2 train 0.01363 val 0.01725 (3.3s) *
+    epoch  3 train 0.00994 val 0.01342 (3.1s) *
+    epoch  4 train 0.00870 val 0.01299 (3.4s) *
+    epoch  5 train 0.00856 val 0.01458 (3.7s)
+    epoch  6 train 0.00827 val 0.01365 (3.6s)
+    epoch  7 train 0.00826 val 0.01485 (3.6s)
+    epoch  8 train 0.00820 val 0.01415 (3.3s)
+    epoch  9 train 0.00806 val 0.01515 (3.3s)
+  -> test RMSE 0.3055  MAE 0.2301  ACC 0.8646  (30s, best epoch 4)
+[train] hybrid_convlstm seed 4  params 127,239
+    epoch  1 train 0.00871 val 0.01151 (14.8s) *
+    epoch  2 train 0.00795 val 0.01084 (15.0s) *
+    epoch  3 train 0.00784 val 0.01125 (15.3s)
+    epoch  4 train 0.00768 val 0.01086 (14.7s)
+    epoch  5 train 0.00755 val 0.01067 (15.6s) *
+    epoch  6 train 0.00740 val 0.01071 (14.8s)
+    epoch  7 train 0.00723 val 0.01184 (13.4s)
+    epoch  8 train 0.00711 val 0.01104 (13.2s)
+    epoch  9 train 0.00696 val 0.01145 (13.2s)
+    epoch 10 train 0.00693 val 0.01170 (13.3s)
+  -> test RMSE 0.2888  MAE 0.2188  ACC 0.8739  (143s, best epoch 5)
+
+Mean test RMSE / MAE / ACC (mean over horizons; mean +- std over seeds):
+  cnn_only         RMSE 0.2869+-0.0095  MAE 0.2175+-0.0088  ACC 0.8743+-0.0100
+  lstm_only        RMSE 0.3138+-0.0162  MAE 0.2361+-0.0119  ACC 0.8600+-0.0132
+  hybrid_convlstm  RMSE 0.2928+-0.0106  MAE 0.2213+-0.0086  ACC 0.8682+-0.0108
+  persistence      RMSE 0.3305  MAE 0.2423
+  climatology      RMSE 0.6277  MAE 0.5047
+| Model | Params | Mean RMSE (degC) | Mean MAE (degC) | Mean ACC | Train time (s) | Epochs |
+|---|---|---|---|---|---|---|
+| CNN-only | 127,913 | 0.2869 +- 0.0095 | 0.2175 +- 0.0088 | 0.8743 +- 0.0100 | 57 +- 14 | 11.4 |
+| LSTM-only | 125,895 | 0.3138 +- 0.0162 | 0.2361 +- 0.0119 | 0.8600 +- 0.0132 | 39 +- 5 | 11.0 |
+| Hybrid ConvLSTM | 127,239 | 0.2928 +- 0.0106 | 0.2213 +- 0.0086 | 0.8682 +- 0.0108 | 157 +- 23 | 11.2 |
+| Persistence | 0 | 0.3305 | 0.2423 | 0.8597 | - | - |
+| Climatology | 0 | 0.6277 | 0.5047 | n/a | - | - |
+
+**RMSE by horizon** (test; mean +- sd over seeds)
+
+| Horizon (d) | CNN-only | LSTM-only | Hybrid ConvLSTM | Persistence | Climatology |
+|---|---|---|---|---|---|
+| 1 | 0.121 +- 0.001 | 0.127 +- 0.002 | 0.120 +- 0.004 | 0.129 | 0.628 |
+| 2 | 0.199 +- 0.004 | 0.211 +- 0.006 | 0.199 +- 0.006 | 0.217 | 0.627 |
+| 3 | 0.255 +- 0.005 | 0.276 +- 0.010 | 0.265 +- 0.011 | 0.286 | 0.627 |
+| 4 | 0.303 +- 0.008 | 0.331 +- 0.015 | 0.309 +- 0.014 | 0.346 | 0.627 |
+| 5 | 0.344 +- 0.013 | 0.378 +- 0.021 | 0.352 +- 0.014 | 0.399 | 0.628 |
+| 6 | 0.378 +- 0.017 | 0.418 +- 0.027 | 0.386 +- 0.015 | 0.447 | 0.628 |
+| 7 | 0.409 +- 0.021 | 0.455 +- 0.033 | 0.420 +- 0.022 | 0.491 | 0.628 |
+
+**MAE by horizon** (test; mean +- sd over seeds)
+
+| Horizon (d) | CNN-only | LSTM-only | Hybrid ConvLSTM | Persistence | Climatology |
+|---|---|---|---|---|---|
+| 1 | 0.087 +- 0.001 | 0.091 +- 0.002 | 0.086 +- 0.004 | 0.091 | 0.505 |
+| 2 | 0.147 +- 0.004 | 0.156 +- 0.005 | 0.147 +- 0.006 | 0.157 | 0.505 |
+| 3 | 0.191 +- 0.006 | 0.206 +- 0.008 | 0.199 +- 0.010 | 0.208 | 0.504 |
+| 4 | 0.229 +- 0.008 | 0.248 +- 0.012 | 0.233 +- 0.011 | 0.253 | 0.504 |
+| 5 | 0.262 +- 0.011 | 0.285 +- 0.015 | 0.268 +- 0.011 | 0.293 | 0.505 |
+| 6 | 0.290 +- 0.015 | 0.318 +- 0.019 | 0.295 +- 0.012 | 0.330 | 0.505 |
+| 7 | 0.316 +- 0.018 | 0.348 +- 0.023 | 0.322 +- 0.016 | 0.364 | 0.505 |
+
+**ACC by horizon** (test; mean +- sd over seeds)
+
+| Horizon (d) | CNN-only | LSTM-only | Hybrid ConvLSTM | Persistence | Climatology |
+|---|---|---|---|---|---|
+| 1 | 0.981 +- 0.000 | 0.979 +- 0.001 | 0.982 +- 0.001 | 0.979 | n/a |
+| 2 | 0.948 +- 0.002 | 0.943 +- 0.003 | 0.949 +- 0.003 | 0.942 | n/a |
+| 3 | 0.914 +- 0.004 | 0.902 +- 0.006 | 0.907 +- 0.008 | 0.901 | n/a |
+| 4 | 0.876 +- 0.007 | 0.860 +- 0.012 | 0.871 +- 0.013 | 0.858 | n/a |
+| 5 | 0.837 +- 0.013 | 0.818 +- 0.018 | 0.829 +- 0.014 | 0.817 | n/a |
+| 6 | 0.800 +- 0.019 | 0.778 +- 0.024 | 0.791 +- 0.017 | 0.778 | n/a |
+| 7 | 0.763 +- 0.026 | 0.740 +- 0.030 | 0.749 +- 0.027 | 0.742 | n/a |
+
+**Mean RMSE (degC) by season of the test year** (mean +- sd over seeds; n = test windows)
+
+| Season (n) | CNN-only | LSTM-only | Hybrid ConvLSTM | Persistence |
+|---|---|---|---|---|
+| DJF (90) | 0.192 +- 0.002 | 0.216 +- 0.020 | 0.190 +- 0.003 | 0.243 |
+| MAM (92) | 0.275 +- 0.003 | 0.299 +- 0.010 | 0.274 +- 0.002 | 0.313 |
+| JJA (92) | 0.392 +- 0.020 | 0.402 +- 0.024 | 0.407 +- 0.021 | 0.426 |
+| SON (78) | 0.240 +- 0.018 | 0.306 +- 0.024 | 0.246 +- 0.018 | 0.308 |
+
+**Paired comparison, seed by seed** (difference = other model - hybrid, in degC; POSITIVE = hybrid better)
+
+| Hybrid vs | Metric | Mean diff | sd of diff | Hybrid better in |
+|---|---|---|---|---|
+| CNN-only | RMSE | -0.0059 | 0.0087 | 1 of 5 seeds |
+| CNN-only | MAE | -0.0038 | 0.0079 | 1 of 5 seeds |
+| CNN-only | RMSE, DJF only | +0.0018 | - | 3 of 5 seeds |
+| CNN-only | RMSE, MAM only | +0.0006 | - | 3 of 5 seeds |
+| CNN-only | RMSE, JJA only | -0.0144 | - | 1 of 5 seeds |
+| CNN-only | RMSE, SON only | -0.0062 | - | 2 of 5 seeds |
+| LSTM-only | RMSE | +0.0210 | 0.0065 | 5 of 5 seeds |
+| LSTM-only | MAE | +0.0148 | 0.0056 | 5 of 5 seeds |
+| LSTM-only | RMSE, DJF only | +0.0256 | - | 5 of 5 seeds |
+| LSTM-only | RMSE, MAM only | +0.0249 | - | 5 of 5 seeds |
+| LSTM-only | RMSE, JJA only | -0.0051 | - | 1 of 5 seeds |
+| LSTM-only | RMSE, SON only | +0.0602 | - | 5 of 5 seeds |
+sample map: {'date': '2026-04-20', 'window_index': 176, 'horizon_days': 7, 'seed': 0}

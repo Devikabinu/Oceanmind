@@ -1,0 +1,125 @@
+{
+  "prepared_at": "2026-10-27T18:59:47+00:00",
+  "source": {
+    "source": "psl",
+    "product": "NOAA OISST v2.1 (PSL OPeNDAP mirror)",
+    "host": "https://psl.noaa.gov/thredds",
+    "note": "fallback source used because the ERDDAP FINAL server was unavailable; PSL does not label preliminary days"
+  },
+  "region": {
+    "lat_min": 28.0,
+    "lat_max": 44.0,
+    "lon_min": -150.0,
+    "lon_max": -130.0,
+    "coarsen": 2,
+    "native_resolution_deg": 0.25,
+    "resolution_deg": 0.5,
+    "grid_hw": [
+      32,
+      40
+    ],
+    "n_ocean_cells": 1280,
+    "lat_range": [
+      28.25,
+      43.75
+    ],
+    "lon_range": [
+      -149.75,
+      -130.25
+    ]
+  },
+  "history": {
+    "start": "2012-01-01",
+    "end": "2024-10-12",
+    "used_for": "day-of-year climatology only (never as training windows)"
+  },
+  "benchmark_block": {
+    "start": "2024-10-13",
+    "end": "2026-10-12",
+    "days": 730,
+    "continuous": true
+  },
+  "split_days": {
+    "train": 548,
+    "val": 88,
+    "test": 94
+  },
+  "split_dates": {
+    "train": [
+      "2024-10-13",
+      "2026-04-13"
+    ],
+    "val": [
+      "2026-04-14",
+      "2026-07-10"
+    ],
+    "test": [
+      "2026-07-11",
+      "2026-10-12"
+    ]
+  },
+  "split_fractions": {
+    "train": 0.7506849315068493,
+    "val": 0.12054794520547946,
+    "test": 0.12876712328767123
+  },
+  "windows": {
+    "train": 535,
+    "val": 75,
+    "test": 81
+  },
+  "lookback_days": 7,
+  "horizons": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+  ],
+  "channels": [
+    "sst",
+    "sst_anom",
+    "sst_grad",
+    "doy_sin",
+    "doy_cos",
+    "mask_sst"
+  ],
+  "normalisation": {
+    "fitted_on": "train block only",
+    "stats": {
+      "sst": {
+        "mean": 17.956398549554937,
+        "std": 3.9638745803488145
+      },
+      "sst_anom": {
+        "mean": 0.41783520848673844,
+        "std": 0.6243123221484972
+      },
+      "sst_grad": {
+        "mean": 0.6700529140932199,
+        "std": 0.33537052461458094
+      }
+    }
+  },
+  "climatology": {
+    "fitted_on": "2012-01-01..2026-04-13 (history + train block, everything before validation)",
+    "smooth_sigma_days": 7.0,
+    "approx_years_of_data": 14.28
+  },
+  "clip_limits_degC": [
+    9.232500076293945,
+    26.66499900817871
+  ],
+  "gap_fill": {
+    "ocean_cell_days": 6910720,
+    "missing_before": 0,
+    "filled": 0,
+    "missing_after": 0,
+    "pct_missing_before": 0.0,
+    "pct_of_missing_filled": 0.0,
+    "pct_missing_after": 0.0
+  },
+  "test_season_coverage_note": "test block covers 2026-07-11 .. 2026-10-12 only"
+}

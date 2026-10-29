@@ -32,7 +32,13 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   { label: "Ocean Data", items: [{ to: "/ocean-data", label: "Ocean Data" }] },
-  { label: "Model Performance", items: [{ to: "/performance", label: "Model Performance" }] },
+  {
+    label: "Model Performance",
+    items: [
+      { to: "/performance", label: "Model Performance" },
+      { to: "/benchmark", label: "Model Benchmark" },
+    ],
+  },
 ];
 
 function Brand() {

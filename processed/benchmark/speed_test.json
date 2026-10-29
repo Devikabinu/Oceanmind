@@ -1,0 +1,19 @@
+{
+  "device": "mps",
+  "batch_size": 8,
+  "rows": {
+    "cnn_only": {
+      "params": 127913,
+      "epoch_seconds": 6.494157791137695
+    },
+    "lstm_only": {
+      "params": 125895,
+      "epoch_seconds": 5.765526056289673
+    },
+    "hybrid_convlstm": {
+      "params": 127239,
+      "epoch_seconds": 5.477886199951172
+    }
+  },
+  "worst_case_minutes": 26.60635507106781
+}

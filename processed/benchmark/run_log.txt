@@ -1,0 +1,168 @@
+/Users/tanishashinthray/Documents/Oceanmind/scripts/benchmark/run_benchmark.py:164: RuntimeWarning: Mean of empty slice
+  m["mean_acc"] = float(np.nanmean(m["acc"]))
+[train] cnn_only seed 0  params 127,913
+    epoch  1 train 0.00647 val 0.01037 (1.8s) *
+    epoch  2 train 0.00569 val 0.01120 (1.5s)
+    epoch  3 train 0.00518 val 0.00907 (1.5s) *
+    epoch  4 train 0.00515 val 0.01112 (1.6s)
+    epoch  5 train 0.00508 val 0.00978 (1.5s)
+    epoch  6 train 0.00502 val 0.00866 (1.6s) *
+    epoch  7 train 0.00487 val 0.01003 (1.5s)
+    epoch  8 train 0.00464 val 0.01023 (1.6s)
+    epoch  9 train 0.00467 val 0.00933 (1.5s)
+    epoch 10 train 0.00454 val 0.01160 (1.5s)
+    epoch 11 train 0.00450 val 0.01038 (1.6s)
+  -> test RMSE 0.4093  MAE 0.3379  ACC 0.7530  (17s, best epoch 6)
+[train] lstm_only seed 0  params 125,895
+    epoch  1 train 0.04777 val 0.04078 (1.2s) *
+    epoch  2 train 0.03026 val 0.02883 (1.2s) *
+    epoch  3 train 0.02075 val 0.02186 (1.3s) *
+    epoch  4 train 0.01521 val 0.01765 (1.3s) *
+    epoch  5 train 0.01188 val 0.01510 (1.3s) *
+    epoch  6 train 0.01015 val 0.01411 (1.2s) *
+    epoch  7 train 0.00921 val 0.01283 (1.0s) *
+    epoch  8 train 0.00827 val 0.01274 (1.3s) *
+    epoch  9 train 0.00779 val 0.01220 (1.1s) *
+    epoch 10 train 0.00731 val 0.01023 (1.3s) *
+    epoch 11 train 0.00671 val 0.01092 (1.2s)
+    epoch 12 train 0.00634 val 0.00999 (1.1s) *
+    epoch 13 train 0.00596 val 0.01078 (1.3s)
+    epoch 14 train 0.00598 val 0.00992 (1.2s) *
+    epoch 15 train 0.00576 val 0.01030 (1.3s)
+    epoch 16 train 0.00571 val 0.01072 (1.3s)
+    epoch 17 train 0.00579 val 0.01029 (1.3s)
+    epoch 18 train 0.00562 val 0.01005 (1.3s)
+    epoch 19 train 0.00536 val 0.00983 (1.3s) *
+    epoch 20 train 0.00542 val 0.00981 (1.4s) *
+    epoch 21 train 0.00527 val 0.00985 (1.0s)
+    epoch 22 train 0.00524 val 0.00991 (1.0s)
+    epoch 23 train 0.00519 val 0.01002 (1.2s)
+    epoch 24 train 0.00523 val 0.00997 (0.9s)
+    epoch 25 train 0.00518 val 0.00993 (1.1s)
+  -> test RMSE 0.4889  MAE 0.4218  ACC 0.6575  (30s, best epoch 20)
+[train] hybrid_convlstm seed 0  params 127,239
+    epoch  1 train 0.00773 val 0.01041 (4.3s) *
+    epoch  2 train 0.00594 val 0.01044 (4.1s)
+    epoch  3 train 0.00548 val 0.01002 (4.0s) *
+    epoch  4 train 0.00527 val 0.00934 (3.9s) *
+    epoch  5 train 0.00522 val 0.00975 (4.0s)
+    epoch  6 train 0.00506 val 0.00927 (4.0s) *
+    epoch  7 train 0.00507 val 0.00955 (4.0s)
+    epoch  8 train 0.00497 val 0.00960 (4.0s)
+    epoch  9 train 0.00479 val 0.00926 (4.0s) *
+    epoch 10 train 0.00464 val 0.01039 (4.0s)
+    epoch 11 train 0.00462 val 0.00938 (4.0s)
+    epoch 12 train 0.00440 val 0.01112 (4.0s)
+    epoch 13 train 0.00428 val 0.01202 (4.0s)
+    epoch 14 train 0.00425 val 0.01143 (4.0s)
+  -> test RMSE 0.5637  MAE 0.4797  ACC 0.4902  (56s, best epoch 9)
+[train] cnn_only seed 1  params 127,913
+    epoch  1 train 0.00739 val 0.01073 (1.3s) *
+    epoch  2 train 0.00569 val 0.01000 (1.4s) *
+    epoch  3 train 0.00539 val 0.00985 (1.5s) *
+    epoch  4 train 0.00534 val 0.00926 (1.5s) *
+    epoch  5 train 0.00508 val 0.00997 (1.4s)
+    epoch  6 train 0.00514 val 0.01009 (1.3s)
+    epoch  7 train 0.00505 val 0.00895 (1.5s) *
+    epoch  8 train 0.00465 val 0.01010 (1.4s)
+    epoch  9 train 0.00455 val 0.00969 (1.4s)
+    epoch 10 train 0.00487 val 0.00976 (1.4s)
+    epoch 11 train 0.00459 val 0.00942 (1.5s)
+    epoch 12 train 0.00434 val 0.00940 (1.4s)
+  -> test RMSE 0.6540  MAE 0.5688  ACC 0.3462  (17s, best epoch 7)
+[train] lstm_only seed 1  params 125,895
+    epoch  1 train 0.04683 val 0.04067 (0.9s) *
+    epoch  2 train 0.03002 val 0.02897 (1.0s) *
+    epoch  3 train 0.02064 val 0.02227 (1.0s) *
+    epoch  4 train 0.01523 val 0.01923 (1.1s) *
+    epoch  5 train 0.01214 val 0.01604 (1.1s) *
+    epoch  6 train 0.01025 val 0.01387 (1.1s) *
+    epoch  7 train 0.00906 val 0.01277 (1.1s) *
+    epoch  8 train 0.00789 val 0.01190 (1.1s) *
+    epoch  9 train 0.00725 val 0.01200 (1.1s)
+    epoch 10 train 0.00663 val 0.01100 (1.1s) *
+    epoch 11 train 0.00617 val 0.01046 (1.2s) *
+    epoch 12 train 0.00622 val 0.01055 (1.1s)
+    epoch 13 train 0.00613 val 0.01024 (1.1s) *
+    epoch 14 train 0.00583 val 0.01055 (1.1s)
+    epoch 15 train 0.00567 val 0.01119 (1.1s)
+    epoch 16 train 0.00547 val 0.01103 (1.1s)
+    epoch 17 train 0.00537 val 0.01063 (1.2s)
+    epoch 18 train 0.00539 val 0.01081 (1.1s)
+  -> test RMSE 0.4554  MAE 0.3793  ACC 0.6968  (20s, best epoch 13)
+[train] hybrid_convlstm seed 1  params 127,239
+    epoch  1 train 0.00715 val 0.01106 (4.0s) *
+    epoch  2 train 0.00566 val 0.00965 (4.0s) *
+    epoch  3 train 0.00531 val 0.00994 (4.0s)
+    epoch  4 train 0.00537 val 0.00963 (4.0s) *
+    epoch  5 train 0.00500 val 0.00974 (4.0s)
+    epoch  6 train 0.00502 val 0.00935 (4.0s) *
+    epoch  7 train 0.00497 val 0.00906 (4.0s) *
+    epoch  8 train 0.00481 val 0.00936 (3.9s)
+    epoch  9 train 0.00463 val 0.00971 (3.9s)
+    epoch 10 train 0.00481 val 0.00989 (4.2s)
+    epoch 11 train 0.00459 val 0.00899 (4.0s) *
+    epoch 12 train 0.00436 val 0.00911 (4.0s)
+    epoch 13 train 0.00441 val 0.00955 (4.0s)
+    epoch 14 train 0.00448 val 0.00889 (4.0s) *
+    epoch 15 train 0.00431 val 0.01018 (3.9s)
+    epoch 16 train 0.00420 val 0.00955 (3.9s)
+    epoch 17 train 0.00398 val 0.01022 (3.9s)
+    epoch 18 train 0.00386 val 0.01021 (3.9s)
+    epoch 19 train 0.00391 val 0.01183 (3.9s)
+  -> test RMSE 0.6587  MAE 0.5731  ACC 0.3351  (75s, best epoch 14)
+[train] cnn_only seed 2  params 127,913
+    epoch  1 train 0.00751 val 0.01018 (1.3s) *
+    epoch  2 train 0.00566 val 0.00986 (1.5s) *
+    epoch  3 train 0.00540 val 0.00971 (1.4s) *
+    epoch  4 train 0.00531 val 0.00999 (1.4s)
+    epoch  5 train 0.00514 val 0.00939 (1.4s) *
+    epoch  6 train 0.00508 val 0.00962 (1.4s)
+    epoch  7 train 0.00500 val 0.00979 (1.4s)
+    epoch  8 train 0.00495 val 0.00919 (1.4s) *
+    epoch  9 train 0.00481 val 0.00930 (1.4s)
+    epoch 10 train 0.00465 val 0.01054 (1.4s)
+    epoch 11 train 0.00461 val 0.00884 (1.5s) *
+    epoch 12 train 0.00484 val 0.00961 (1.4s)
+    epoch 13 train 0.00458 val 0.01033 (1.4s)
+    epoch 14 train 0.00457 val 0.00973 (1.4s)
+    epoch 15 train 0.00450 val 0.01021 (1.5s)
+    epoch 16 train 0.00430 val 0.00977 (1.4s)
+  -> test RMSE 0.4527  MAE 0.3452  ACC 0.7088  (23s, best epoch 11)
+[train] lstm_only seed 2  params 125,895
+    epoch  1 train 0.04879 val 0.04133 (0.9s) *
+    epoch  2 train 0.02946 val 0.02680 (1.1s) *
+    epoch  3 train 0.01714 val 0.01852 (1.1s) *
+    epoch  4 train 0.01148 val 0.01536 (1.0s) *
+    epoch  5 train 0.00970 val 0.01468 (1.1s) *
+    epoch  6 train 0.00924 val 0.01477 (1.1s)
+    epoch  7 train 0.00910 val 0.01586 (1.1s)
+    epoch  8 train 0.00904 val 0.01425 (1.0s) *
+    epoch  9 train 0.00930 val 0.01468 (1.0s)
+    epoch 10 train 0.00931 val 0.01504 (1.0s)
+    epoch 11 train 0.00913 val 0.01514 (1.1s)
+    epoch 12 train 0.00906 val 0.01503 (1.1s)
+    epoch 13 train 0.00904 val 0.01478 (1.1s)
+  -> test RMSE 0.3402  MAE 0.2424  ACC 0.8930  (14s, best epoch 8)
+[train] hybrid_convlstm seed 2  params 127,239
+    epoch  1 train 0.00733 val 0.00989 (3.8s) *
+    epoch  2 train 0.00574 val 0.01049 (4.0s)
+    epoch  3 train 0.00554 val 0.00959 (4.0s) *
+    epoch  4 train 0.00522 val 0.01099 (4.0s)
+    epoch  5 train 0.00526 val 0.00946 (4.0s) *
+    epoch  6 train 0.00495 val 0.00916 (4.0s) *
+    epoch  7 train 0.00502 val 0.00944 (4.1s)
+    epoch  8 train 0.00489 val 0.00906 (3.9s) *
+    epoch  9 train 0.00476 val 0.00907 (4.0s)
+    epoch 10 train 0.00468 val 0.01077 (4.0s)
+    epoch 11 train 0.00459 val 0.00941 (4.0s)
+    epoch 12 train 0.00453 val 0.00924 (4.0s)
+    epoch 13 train 0.00443 val 0.01096 (3.9s)
+  -> test RMSE 0.5720  MAE 0.4927  ACC 0.4635  (52s, best epoch 8)
+
+Mean test RMSE / MAE / ACC (mean over horizons; mean +- std over seeds):
+  cnn_only         RMSE 0.5053+-0.1306  MAE 0.4173+-0.1313  ACC 0.6027+-0.2232
+  lstm_only        RMSE 0.4282+-0.0780  MAE 0.3478+-0.0938  ACC 0.7491+-0.1262
+  hybrid_convlstm  RMSE 0.5981+-0.0526  MAE 0.5152+-0.0506  ACC 0.4296+-0.0829
+  persistence      RMSE 0.3268  MAE 0.2352
+  climatology      RMSE 0.6964  MAE 0.5895

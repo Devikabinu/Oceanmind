@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, get_db
+from app.services import benchmark_service
 from app.services import monitor_service as svc
 
 router = APIRouter(prefix="/monitor", tags=["monitor"], dependencies=[Depends(get_current_user)])
@@ -31,6 +32,12 @@ def overview(db: Session = Depends(get_db)) -> dict:
 @router.get("/performance")
 def performance() -> dict:
     return _guard(svc.performance)
+
+
+@router.get("/benchmark")
+def benchmark() -> dict:
+    """Read-only: the saved CNN-only / LSTM-only / ConvLSTM benchmark run (numbers and sample map from processed/benchmark/). Nothing is computed or trained here."""
+    return _guard(benchmark_service.benchmark)
 
 
 @router.get("/map")
