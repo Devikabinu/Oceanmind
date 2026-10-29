@@ -41,7 +41,7 @@ describe("ModelBenchmark page", () => {
     const rows = within(table).getAllByRole("row");
     expect(rows).toHaveLength(6); // header + 3 models + persistence + climatology
     const hybrid = rows.find((r) => within(r).queryByText("Hybrid ConvLSTM"))!;
-    expect(within(hybrid).getByText("127,239")).toBeInTheDocument();
+    expect(within(hybrid).getByText((127239).toLocaleString())).toBeInTheDocument();
     expect(within(hybrid).getByText("0.2000 ± 0.0100")).toBeInTheDocument();
     const persistence = rows.find((r) => within(r).queryByText("Persistence"))!;
     expect(within(persistence).getByText("0.5000")).toBeInTheDocument();

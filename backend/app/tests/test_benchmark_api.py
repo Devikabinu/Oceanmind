@@ -89,3 +89,25 @@ def test_benchmark_endpoint_is_read_only(client, bench):
     h = auth_headers(client)
     for method in (client.post, client.put, client.patch, client.delete):
         assert method("/api/monitor/benchmark", headers=h).status_code == 405
+
+
+# ---- the committed run, read through the real route, whatever the working directory
+def test_the_committed_benchmark_is_served_from_the_project_root_regardless_of_the_working_directory(client, tmp_path, monkeypatch):
+    from pathlib import Path
+    monkeypatch.chdir(tmp_path)                                                              # a working directory that has no processed/ folder
+    monkeypatch.setattr(environment.get_settings(), "PROCESSED_DIR", "", raising=False)       # the default: derived from the code's own location, not from the cwd
+    root = Path(environment.__file__).resolve().parents[3]
+    committed = json.loads((root / "processed" / "benchmark" / benchmark_service.RUN_DIR / "results.json").read_text(encoding="utf-8"))
+    assert environment.processed_dir() == root / "processed"
+    r = client.get("/api/monitor/benchmark", headers=auth_headers(client))
+    assert r.status_code == 200
+    b = r.json()
+    assert [m["key"] for m in b["models"]] == ["cnn_only", "lstm_only", "hybrid_convlstm"]
+    for m in b["models"]:                                                                    # every number is the stored one, unchanged
+        assert m["mean_rmse"] == committed["models"][m["key"]]["mean_rmse"] and m["mean_mae"] == committed["models"][m["key"]]["mean_mae"]
+    assert b["sample_map"]["image"] is None or b["sample_map"]["image"].startswith("data:image/png;base64,")
+
+
+def test_the_benchmark_route_is_mounted_under_the_api_prefix_and_nowhere_else(client):
+    paths = set(client.get("/openapi.json").json()["paths"])
+    assert "/api/monitor/benchmark" in paths and "/monitor/benchmark" not in paths and "/api/benchmark" not in paths
