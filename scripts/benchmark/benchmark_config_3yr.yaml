@@ -1,0 +1,38 @@
+# FOLLOW-UP RUN (3-year block, different test season). Identical to benchmark_config.yaml except window_years. Fixed before running.
+# Settings for the CNN-only vs LSTM-only vs ConvLSTM (hybrid) benchmark. ADD-ON ONLY: nothing here changes config.yaml,
+# config.pacific.yaml, any model, checkpoint or processed output. Everything the benchmark writes goes to processed/benchmark/.
+# Fixed BEFORE any model was trained; not edited after seeing results.
+
+region:                       # open-ocean box inside the existing NE Pacific study area (no land cells)
+  lat_min: 28.0
+  lat_max: 44.0
+  lon_min: -150.0
+  lon_max: -130.0
+  coarsen: 2                  # native 0.25 deg -> 0.5 deg by 2x2 block mean (32 x 40 grid)
+
+data:
+  history_start: "2012-01-01" # same start as the project's config.yaml. History is used ONLY to compute the day-of-year climatology
+  window_years: 3             # FOLLOW-UP: 3-year block (was 2). Window end fixed in advance at 2026-04-30 so the test block is winter/spring
+  split: {train: 0.75, val: 0.12}   # remainder (~13%) = test, the most recent days. Chronological, no shuffling.
+  lookback_days: 7            # same as the hybrid
+  horizons: [1, 2, 3, 4, 5, 6, 7]
+  max_nan_frac: 0.2           # same as config.yaml forecast.max_nan_frac
+  max_gap_days: 3             # same as config.yaml missing.max_gap_days
+  clip_percentiles: [0.1, 99.9]   # same as config.yaml outliers.percentiles, computed on the train block only
+  clim_sigma_days: 7.0        # same as config.yaml climatology.smooth_sigma_days
+
+training:                     # identical for all three models (values taken from the project's config.yaml where they exist)
+  optimizer: adamw
+  learning_rate: 0.001
+  weight_decay: 0.0001
+  lr_schedule: constant       # the project's training uses a constant LR, so all three models do too
+  grad_clip: 1.0
+  loss: mse                   # masked MSE on normalised SST, via oceanmind_model.losses.masked_loss
+  max_epochs: 30
+  patience: 5                 # early stopping on VALIDATION loss
+  batch_size: 8               # config.yaml uses 2; 8 is used here because the sample is small and MPS is faster with larger batches
+  seeds: [0, 1, 2]
+
+models:
+  param_budget: 127239        # = parameter count of the existing OceanConvLSTM (hidden 32, 2 layers, head 32)
+  param_tolerance: 0.15       # CNN-only and LSTM-only are sized to be within +-15% of the budget where architecturally possible

@@ -20,6 +20,7 @@ const Profile = lazy(() => import("./pages/Profile"));
 const RiskAlerts = lazy(() => import("./pages/RiskAlerts"));
 const OceanData = lazy(() => import("./pages/OceanData"));
 const ModelPerformance = lazy(() => import("./pages/ModelPerformance"));
+const ModelBenchmark = lazy(() => import("./pages/ModelBenchmark"));
 const OceanMapPage = lazy(() => import("./pages/OceanMapPage"));
 const Heatwaves = lazy(() => import("./pages/Heatwaves"));
 const SpeciesList = lazy(() => import("./pages/SpeciesList"));
@@ -47,6 +48,7 @@ export default function App() {
               <Route path="/risk-alerts" element={<RiskAlerts />} />
               <Route path="/ocean-data" element={<OceanData />} />
               <Route path="/performance" element={<ModelPerformance />} />
+              <Route path="/benchmark" element={<ModelBenchmark />} />
               <Route path="/data-sources" element={<DataSources />} />
               <Route path="/datasets" element={<Datasets />} />
               <Route path="/ingestion" element={<Ingestion />} />
