@@ -52,21 +52,6 @@ def ingest_noaa(
 
 
 @router.post(
-    "/copernicus",
-    response_model=IngestionJobRead,
-    status_code=status.HTTP_202_ACCEPTED,
-    dependencies=[Depends(_CAN_INGEST)],
-)
-def ingest_copernicus(
-    request: IngestionRequest,
-    background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(_CAN_INGEST),
-) -> IngestionJobRead:
-    return _start_ingestion("copernicus", request, background_tasks, db, current_user)
-
-
-@router.post(
     "/obis",
     response_model=IngestionJobRead,
     status_code=status.HTTP_202_ACCEPTED,

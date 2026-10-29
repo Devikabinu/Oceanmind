@@ -102,6 +102,23 @@ _LEGACY_SOURCE = {
 }
 
 
+EXPECTED_LAG_DAYS = 1       # the newest SST day expected on day D is D-1 (NOAA preliminary OISST); keep equal to oceanmind_environment.schedule.OPERATIONAL_LAG_DAYS
+
+
+def refresh_status_file() -> Path:
+    return Path(__file__).resolve().parents[3] / "data" / "refresh_status.json"
+
+
+def refresh_status() -> dict | None:
+    """Outcome of the last automatic refresh (written by scripts/daily_refresh.py): updated | unchanged | source_unavailable | failed, with the newest day and forecast dates."""
+    try:
+        d = json.loads(refresh_status_file().read_text())
+    except (OSError, ValueError):
+        return None
+    return {k: d.get(k) for k in ("attempted_at", "outcome", "message", "latest_observation", "expected_latest", "forecast_dates", "consistent", "problems", "source_latest", "processed_latest",
+                                  "last_success_at", "last_update_at")}
+
+
 class EnvironmentalStore:
     """One processed dataset. Cheap to construct; arrays are memory-mapped."""
 
@@ -180,15 +197,26 @@ class EnvironmentalStore:
         nxt = pd.Timestamp(final) + pd.Timedelta(days=1)
         return str(nxt.date()) if nxt <= self.dates[-1] else None
 
-    def freshness(self) -> dict:
-        """How old the newest observation is, in plain terms. Old data is never presented as current."""
-        today = pd.Timestamp.now(tz="UTC").tz_localize(None).normalize()
-        behind = int((today - self.dates[-1]).days)
-        status = "current" if behind <= 3 else "delayed" if behind <= 14 else "stale"
-        msg = {"current": f"Latest observation is {behind} day{'s' if behind != 1 else ''} old.",
-               "delayed": f"Latest observation is {behind} days old; newer data have not been loaded yet.",
-               "stale": f"Latest observation is {behind} days old. These results describe that date, not today."}[status]
-        return {"days_behind": behind, "status": status, "message": msg, "observation_date": str(self.dates[-1].date())}
+    def freshness(self, now=None) -> dict:
+        """How the newest observation compares with the one expected today (NOAA publishes a day with about a one-day lag), and what the last automatic refresh did.
+        Old data are never presented as current; the actual latest date is always stated."""
+        today = pd.Timestamp(now if now is not None else pd.Timestamp.now()).normalize()      # the operator's local day
+        latest = self.dates[-1]
+        expected = today - pd.Timedelta(days=EXPECTED_LAG_DAYS)
+        behind = int((today - latest).days)
+        behind_expected = max(int((expected - latest).days), 0)
+        status = "current" if behind_expected == 0 else "delayed" if behind_expected <= 2 else "stale"
+        refresh = refresh_status()
+        failed = bool(refresh and refresh.get("outcome") in ("failed", "source_unavailable"))
+        if failed and status != "current":                                                  # behind the expected day and the last attempt did not succeed: say so
+            status = "refresh failed"
+        d = str(latest.date())
+        msg = {"current": f"Latest observation {d} is the newest expected today (about a {EXPECTED_LAG_DAYS}-day publication lag).",
+               "delayed": f"Latest observation {d}; {expected.date()} was expected ({behind_expected} day{'s' if behind_expected != 1 else ''} behind). The newest data are not loaded yet; results describe {d}, not today.",
+               "stale": f"Latest observation {d} is {behind} days old ({behind_expected} behind the {expected.date()} expected). These results describe that date, not today.",
+               "refresh failed": f"Latest observation {d}; {expected.date()} was expected ({behind_expected} day{'s' if behind_expected != 1 else ''} behind) and the last refresh attempt did not complete. These results describe {d}, not today."}[status]
+        return {"days_behind": behind, "status": status, "message": msg, "observation_date": d, "expected_date": str(expected.date()), "behind_expected": behind_expected,
+                "lag_days": EXPECTED_LAG_DAYS, "refresh": refresh}
 
     def describe(self) -> dict:
         meta_file = self.ref.path / "meta.json"
@@ -206,6 +234,8 @@ class EnvironmentalStore:
             "climatology": ("Daily climatology: the mean of each calendar day over the baseline period, smoothed (computed once in preprocessing)." if self.train_period else None),
             "processing": "Aligned to the analysis grid, quality-controlled, land-masked; anomaly = SST minus the daily climatology (computed in preprocessing, not in the API).",
             "update_method": "Rebuilt by the preprocessing build; the latest date is read from the processed dataset, never assumed.",
+            "forecast_methodology": "The project ConvLSTM takes the previous 7 daily maps (SST, SST anomaly, SST gradient, day of year, valid-data mask) and predicts the change from the last observed map for each of the next 7 days. "
+                                    "It is rerun after every refresh, so the forecast starts the day after the newest observation. Its weights were trained on the NE Pacific (2012-2023); its error against a persistence forecast and the climatology is measured on a held-out test period and shown on the forecast and Model Performance pages.",
             "freshness": self.freshness(),
             "processed_at": pd.Timestamp(meta_file.stat().st_mtime, unit="s", tz="UTC").isoformat(timespec="seconds"),
             "source_timestamp": src.get("synced_at"),
@@ -264,6 +294,9 @@ def _store_cached(ds_id: str, path: str, stamp: float) -> EnvironmentalStore:
 def get_store(dataset: str | None = None) -> EnvironmentalStore:
     ds_id = resolve_dataset_id(dataset)
     ref = dataset_refs()[ds_id]
+    from app.services import refresh_guard
+    if refresh_guard.rebuilding():
+        raise DatasetUnavailable(f"dataset {ds_id!r} is being refreshed with the newest observations; try again in a minute or two.")
     meta = ref.path / "meta.json"
     if not meta.exists():
         raise DatasetUnavailable(f"dataset {ds_id!r} has not been built: {ref.path} has no processed output. Run the preprocessing build for this dataset.")

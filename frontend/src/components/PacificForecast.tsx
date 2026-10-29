@@ -11,6 +11,7 @@ import ContextBar from "./ContextBar";
 import ExplanationPanel from "./ExplanationPanel";
 import PageHeader from "./PageHeader";
 import RelatedLinks from "./RelatedLinks";
+import DataDatesNote from "./DataDatesNote";
 import SourceTag from "./SourceTag";
 import SstMap from "./SstMap";
 import Status from "./Status";
@@ -46,10 +47,11 @@ export default function PacificForecast() {
       <div className="mt-3">
         <ContextBar note="The forecast is issued from the dataset's latest day; the date selector does not apply." />
       </div>
+      <DataDatesNote />
       <Status isLoading={fc.isLoading} error={fc.error} hasData={!!F} emptyMessage="No forecast for this dataset.">
         {F && (
           <div className="mt-4 space-y-4">
-            <ExplanationPanel explanation={F.explanation} title="Forecast in plain language" />
+            <ExplanationPanel explanation={F.explanation} title="Forecast in plain language" heading="h2" />
 
             <section className="rounded-lg bg-white/70 p-4 ring-1 ring-slate-200" aria-labelledby="fc-t">
               <h2 id="fc-t" className="text-sm font-semibold uppercase tracking-wide text-slate-800">

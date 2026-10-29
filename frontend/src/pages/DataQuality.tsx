@@ -44,7 +44,7 @@ export default function DataQuality() {
     <div>
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-slate-900">Data Quality</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Data Quality</h1>
           <p className="mt-1 text-sm text-slate-500">Per-dataset validation results from the ingestion pipeline.</p>
         </div>
         <select
@@ -62,11 +62,11 @@ export default function DataQuality() {
       </div>
 
       {!selectedDatasetId ? (
-        <p className="mt-6 text-sm text-slate-400">Select a dataset to view its quality reports.</p>
+        <p className="mt-6 text-sm text-slate-500">Select a dataset to view its quality reports.</p>
       ) : isLoading ? (
-        <p className="mt-6 text-sm text-slate-400">Loading...</p>
+        <p className="mt-6 text-sm text-slate-500">Loading...</p>
       ) : reports.length === 0 ? (
-        <p className="mt-6 text-sm text-slate-400">No quality report exists for this dataset. Reports are written when an ingestion job completes.</p>
+        <p className="mt-6 text-sm text-slate-500">No quality report exists for this dataset. Reports are written when an ingestion job completes.</p>
       ) : (
         <>
           <div className="mt-6 rounded-lg border border-slate-200 bg-white p-5">

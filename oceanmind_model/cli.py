@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import json
 import sys
 
 
@@ -17,6 +18,11 @@ def main(argv=None):
     hw.add_argument("--dataset-id", default="ne_pacific", help="label stored with the results, e.g. pacific")
     hw.add_argument("--id-prefix", default=None, help="event id prefix (default: mhw, or mhw-<dataset> for datasets other than ne_pacific)")
     hw.add_argument("--out-subdir", default="model")
+    ex = sub.add_parser("explain", help="sensitivity of the latest forecast at one place (JSON on stdout)")
+    ex.add_argument("--config", default="config.yaml")
+    ex.add_argument("--lat", type=float, required=True)
+    ex.add_argument("--lon", type=float, required=True)
+    ex.add_argument("--device", default=None)
     t = sub.add_parser("train", help="train on TRAIN, early-stop on VALIDATION")
     e = sub.add_parser("evaluate", help="score a checkpoint and compare with the baselines")
     for p in (t, e):
@@ -38,6 +44,10 @@ def main(argv=None):
         from .export_demo import export_dashboard_snapshot
         info = export_dashboard_snapshot(cfg, "best", "test", args.out_subdir, args.device)
         print(f"wrote dashboard snapshot: input ends {info['input_end_date']}, targets {info['target_dates'][0]}..{info['target_dates'][-1]}")
+        return 0
+    if args.cmd == "explain":
+        from .explain import explain_cell
+        sys.stdout.write(json.dumps(explain_cell(cfg, args.lat, args.lon, args.device)))
         return 0
     if args.cmd == "heatwaves":
         from .heatwaves import compute_heatwaves

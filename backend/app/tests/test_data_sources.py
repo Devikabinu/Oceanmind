@@ -19,7 +19,7 @@ def test_list_data_sources_is_prepopulated(client):
     )
     assert response.status_code == 200
     names = {source["name"] for source in response.json()}
-    assert names == {"NOAA OISST v2.1", "Copernicus Marine SST", "OBIS"}
+    assert names == {"NOAA OISST v2.1", "OBIS"}
 
 
 def test_list_datasets_paginated_shape(client):

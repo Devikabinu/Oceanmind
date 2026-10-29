@@ -14,11 +14,11 @@ export default function DataSources() {
 
   return (
     <div>
-      <h1 className="text-xl font-semibold text-slate-900">Data Sources</h1>
+      <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Data Sources</h1>
       <p className="mt-1 text-sm text-slate-500">The registry of external datasets this platform can ingest.</p>
 
       {isLoading ? (
-        <p className="mt-6 text-sm text-slate-400">Loading...</p>
+        <p className="mt-6 text-sm text-slate-500">Loading...</p>
       ) : (
         <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
           {sources.map((source) => (

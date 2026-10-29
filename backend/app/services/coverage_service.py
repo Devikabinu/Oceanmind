@@ -136,7 +136,7 @@ def sources(db: Session) -> dict:
         export = {"start": "2012-01-01", "end": e.info["latest"]["observed_date"], "bounds": e.bounds}
     except OutputsUnavailable:
         export = None
-    noaa, cop, obis = (_ds_stats(db, n) for n in ("NOAA OISST v2.1", "Copernicus Marine SST", "OBIS"))
+    noaa, obis = (_ds_stats(db, n) for n in ("NOAA OISST v2.1", "OBIS"))
     n_species = db.execute(select(func.count()).select_from(Species)).scalar_one()
     n_obs_db = db.execute(select(func.count()).select_from(OceanObservation)).scalar_one()
     n_bio_db = db.execute(select(func.count()).select_from(BiodiversityObservation)).scalar_one()
@@ -162,16 +162,6 @@ def sources(db: Session) -> dict:
          "freshness": (pac or {}).get("freshness"),
          "processing": ((pac or {}).get("processing") or "Regridded to the analysis grid, quality-checked, land-masked; anomaly = SST minus the daily climatology."),
          "limitations": ((pac or {}).get("limitations") or ["Coastal and small-scale features are not resolved at this resolution."])},
-        {"id": "copernicus", "name": "Copernicus Marine SST", "provider": "Copernicus Marine Service (CMEMS)", "data_type": "Multi-product SST ensemble (observed/analysis)",
-         "variables": ["Sea surface temperature"], "coverage_source": "Global ocean (dataset-specific grid)",
-         "temporal_source": "Near-real-time and reprocessed products (see dataset page)", "resolution": "Dataset-specific",
-         "spatial_loaded": "Nothing loaded" if cop.get("records", 0) == 0 else "See datasets",
-         "latest_date": None if cop.get("records", 0) == 0 else (cop.get("temporal_end").date().isoformat() if cop.get("temporal_end") else None),
-         "status_kind": "integrated" if cop.get("records", 0) == 0 else "loaded",
-         "status_label": "Integrated (adapter available), not loaded: needs credentials" if cop.get("records", 0) == 0 else "Loaded",
-         "records_label": str(cop.get("records", 0)),
-         "loaded_in_project": "Adapter is available; requires free Copernicus credentials to ingest" if cop.get("records", 0) == 0 else f"{cop['records']} records loaded",
-         "database": cop, "documentation": "https://data.marine.copernicus.eu/", "stored_rows": cop.get("records", 0)},
         {"id": "obis", "name": "OBIS", "provider": "Ocean Biodiversity Information System", "data_type": "Species occurrence records (observed)",
          "variables": ["Scientific name", "Position", "Event date", "Depth range", "Occurrence status", "Taxonomy"],
          "coverage_source": "Global; coverage varies strongly by species, region and sampling effort",

@@ -42,6 +42,8 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         seed_data_sources(db)
     finally:
         db.close()
+    from app.services import refresh_guard
+    refresh_guard.start_watcher()
     yield
 
 

@@ -20,7 +20,7 @@ const pct = (v: number | null | undefined) => (v == null ? "–" : `${(v * 100).
 
 /** Percentile in plain words for an anomaly of either sign. */
 function unusual(c: AnomalyCell): string {
-  if (c.historical_percentile == null) return "Insufficient history to rank";
+  if (c.historical_percentile == null) return "History too short to rank";
   const tail = c.anomaly_c >= 0 ? 100 - c.historical_percentile : c.historical_percentile;
   const side = c.anomaly_c >= 0 ? "warmer" : "colder";
   return `${side} than ${(100 - tail).toFixed(0)}% of ${c.historical_samples.toLocaleString()} comparable days`;

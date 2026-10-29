@@ -21,7 +21,12 @@ netCDF4==1.7.4
 geopandas==1.0.1
 shapely==2.0.6
 requests==2.32.3
-copernicusmarine==2.4.1
+
+# ConvLSTM explanation (run as a subprocess of this interpreter by app/services/forecast_explain.py) and risk statistics.
+# CPU build: pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.9.1
+scipy==1.18.1
+PyYAML==6.0.3
 
 pytest==8.3.3
 pytest-cov==5.0.0

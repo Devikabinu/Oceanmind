@@ -140,7 +140,7 @@ describe("Pacific anomalies page", () => {
     expect(within(warm).getByText(/warmer than 100% of 449 comparable days|warmer than 99% of 449/)).toBeInTheDocument();
     const cold = screen.getByLabelText("Strongest cold anomalies");
     expect(within(cold).getByText(/colder than 99% of 449 comparable days/)).toBeInTheDocument();
-    expect(within(cold).getByText("Insufficient history to rank")).toBeInTheDocument();         // too few earlier days: not ranked, not guessed
+    expect(within(cold).getByText("History too short to rank")).toBeInTheDocument();         // too few earlier days: not ranked, not guessed
     expect(within(screen.getByLabelText("Persistent anomalies")).getByText(/40 consecutive days/)).toBeInTheDocument();
     expect(within(screen.getByLabelText("Regional comparison")).getByText("Polynesia")).toBeInTheDocument();
     expect(screen.getByText(/No cause is claimed/)).toBeInTheDocument();

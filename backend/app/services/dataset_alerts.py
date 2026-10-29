@@ -102,7 +102,7 @@ def generate(db: Session, dataset: str) -> dict:
             f"Current anomaly {ev['current_anomaly_c']:+.1f} degC, peak {ev['max_anomaly_c']:+.1f} degC ({ev['category_name']}); cumulative intensity {ev.get('cumulative_intensity_c_days', 0):.0f} degC-days.",
             f"Affected area about {ev['area_km2']:,.0f} km2; warmer than {ev['historical_percentile']:.0f}% of baseline values for this date.",
             (f"{len(sp)} species have OBIS records in the area ({len(sensitive)} listed VU/EN/CR by their source)." if sp
-             else "No stored species records overlap this area (insufficient biodiversity coverage; that does not mean no animals are present)."),
+             else "No stored species records overlap this area (limited biodiversity coverage; that does not mean no animals are present)."),
         ]
         p7 = ev.get("forecast_still_above_p90_day7")
         if p7 is not None:
@@ -127,7 +127,7 @@ def generate(db: Session, dataset: str) -> dict:
                  {"label": "Cumulative intensity", "value": f"{ev.get('cumulative_intensity_c_days', 0):.0f} °C·days"},
                  {"label": "Ecological risk", "value": (f"{risk_info['level']} ({risk_info['score']:.2f})" if risk_info and risk_info["level"] else "not assessed")},
                  {"label": "Forecast, day 7 (prediction)", "value": (f"{p7 * 100:.0f}% of area still above threshold" if p7 is not None else "not available")},
-                 {"label": "Biodiversity overlap", "value": f"{len(sp)} species with records" if sp else "insufficient coverage"},
+                 {"label": "Biodiversity overlap", "value": f"{len(sp)} species with records" if sp else "limited coverage"},
                  {"label": "Conservation-sensitive species", "value": str(len(sensitive)) if sp else "not confirmed"}]})
 
     # 2. highest ecological-risk 2x2 degree areas

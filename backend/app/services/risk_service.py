@@ -31,7 +31,7 @@ METHODOLOGY = {
     "status": "Project-level, rule-based indicator. Not an established published index and not a prediction of harm.",
     "weights": WEIGHTS,
     "factors": {
-        "anomaly": "Size of today's SST anomaly (observed SST minus the 2012-2023 daily average): |anomaly| / 3 degC, capped at 1.",
+        "anomaly": "Size of today's SST anomaly (observed SST minus the baseline daily climatology of the dataset): |anomaly| / 3 degC, capped at 1.",
         "persistence": "Length of the current marine-heatwave run (days above the seasonal 90th percentile, min 5 days): days / 14, capped at 1.",
         "forecast": "Mean absolute forecast anomaly over the next 7 days (ConvLSTM forecast minus climatology): |anomaly| / 3 degC, capped at 1.",
         "overlap": f"Distinct species with OBIS records in the surrounding 2x2 degree block within the last {OVERLAP_WINDOW_DAYS} days: n / {OVERLAP_SATURATION}, capped at 1. Absent records mean 'no available records', not 'no animals'.",
@@ -79,6 +79,11 @@ class RiskInputs:
     hist: dict | None = None
     cell_fn: Callable | None = None
     lon_origin: float = 0.0
+    baseline: list | None = None                     # [start, end] of the climatology the anomaly is measured against
+    forecast_issued: str | None = None               # observation date the forecast was issued from (None when there is none)
+    forecast_dates: list | None = None
+    heatwave_date: str | None = None
+    species_latest: str | None = None
 
     @property
     def block(self) -> int:
@@ -108,7 +113,9 @@ def legacy_inputs(env: Env) -> RiskInputs:
         persistence_days=None if env.hw is None else env.hw["run_len"].astype("float32"),
         forecast_anomaly=forecast_anomaly(env), species_sampled=True,
         source={"provider_id": "noaa_oisst_v2.1_processed", "is_observational": True, "description": "NOAA OISST v2.1 (processed) with the project ConvLSTM forecast"},
-        hw=env.hw, hist=env.hist, cell_fn=env.cell, lon_origin=float(env.lon.min()) - env.res / 2,
+        hw=env.hw, hist=env.hist, cell_fn=env.cell, lon_origin=float(env.lon.min()) - env.res / 2, baseline=["2012-01-01", "2023-12-31"],
+        forecast_issued=env.info["latest"]["observed_date"], forecast_dates=env.info["latest"]["target_dates"],
+        heatwave_date=None if env.hwinfo is None else env.hwinfo.get("latest_date"),
     )
     if env.hw is None:
         inp.unavailable["persistence"] = "marine-heatwave state not found; re-run the dashboard export"
@@ -197,7 +204,8 @@ def forecast_anomaly(env: Env) -> np.ndarray:
     return env.z["latest_forecast"] - env.z["latest_climatology"]
 
 
-BIO_STATES = ("observed", "none_recorded", "insufficient_coverage", "unavailable")
+BIO_STATES = ("observed", "none_recorded", "insufficient_coverage", "unavailable", "nearby")
+NEARBY_REACH_DEG = 10.0        # an unsampled 2x2 degree block borrows the nearest sampled block within this distance, and says so
 
 
 def factor_grids(env, overlap: dict | None) -> dict:
@@ -225,6 +233,22 @@ def factor_grids(env, overlap: dict | None) -> dict:
         for (bi, bj), n in overlap.items():
             ov[bi * B:(bi + 1) * B, bj * B:(bj + 1) * B] = min(n / OVERLAP_SATURATION, 1.0)
             bio[bi * B:(bi + 1) * B, bj * B:(bj + 1) * B] = 0
+    regional: dict = {}
+    if overlap and ov is not None and not inp.species_sampled:                            # nearby records: the nearest sampled block within NEARBY_REACH_DEG, never zero
+        from scipy import ndimage
+        nbi, nbj = -(-H // B), -(-W // B)
+        grid = np.full((nbi, nbj), np.nan)
+        for (bi, bj), n in overlap.items():
+            if bi < nbi and bj < nbj:
+                grid[bi, bj] = n
+        sampled = np.isfinite(grid)
+        if sampled.any() and not sampled.all():
+            dist, (ii, jj) = ndimage.distance_transform_edt(~sampled, return_indices=True)
+            for bi, bj in zip(*np.where(~sampled & (dist * B * inp.res <= NEARBY_REACH_DEG))):
+                n = int(grid[ii[bi, bj], jj[bi, bj]])
+                regional[(int(bi), int(bj))] = (n, round(float(dist[bi, bj] * B * inp.res), 1))
+                ov[bi * B:(bi + 1) * B, bj * B:(bj + 1) * B] = min(n / OVERLAP_SATURATION, 1.0)
+                bio[bi * B:(bi + 1) * B, bj * B:(bj + 1) * B] = 4
     parts = {"anomaly": anom, "persistence": persist, "forecast": fc, "overlap": ov}
     num = np.zeros((H, W), dtype="float64")
     den = np.zeros((H, W), dtype="float64")
@@ -239,7 +263,7 @@ def factor_grids(env, overlap: dict | None) -> dict:
     scored = np.isfinite(anom) & (inp.state == ASSESSED)
     score = np.where(scored & (den > 0), score, np.nan)
     return {"factors": parts, "score": score.astype("float32"), "used": [k for k, v in parts.items() if v is not None],
-            "completeness": np.where(scored, den / sum(WEIGHTS.values()), np.nan).astype("float32"), "bio": bio}
+            "completeness": np.where(scored, den / sum(WEIGHTS.values()), np.nan).astype("float32"), "bio": bio, "regional": regional}
 
 
 def score_to_levels(score: np.ndarray) -> np.ndarray:
@@ -250,57 +274,94 @@ def score_to_levels(score: np.ndarray) -> np.ndarray:
     return out
 
 
+SATURATION = {"anomaly": 3.0, "persistence": 14.0, "forecast": 3.0, "overlap": float(OVERLAP_SATURATION)}      # raw value at which a factor reaches 1.0
+NORMALIZATION = {"anomaly": "factor = min(|anomaly| / 3 °C, 1)", "persistence": "factor = min(heatwave run length / 14 days, 1)",
+                 "forecast": "factor = min(mean |forecast anomaly| over the 7 days / 3 °C, 1)", "overlap": f"factor = min(distinct species in the 2x2 degree block / {int(OVERLAP_SATURATION)}, 1)"}
+RAW_UNIT = {"anomaly": "°C", "persistence": "days", "forecast": "°C", "overlap": "species"}
+MISSING_INPUT = {"persistence": "marine-heatwave results for this date", "forecast": "a forecast issued from this date", "overlap": "stored biodiversity records in this 2x2 degree block"}
+
+
+def baseline_text(inp: "RiskInputs") -> str:
+    return f"the {inp.baseline[0][:4]}-{inp.baseline[1][:4]} average" if inp.baseline else "the dataset's climatological average"
+
+
 def cell_assessment(env, i: int, j: int, overlap: dict | None, g: dict | None = None) -> dict:
+    """The risk of one cell with every step of its calculation. For each factor: the raw value it is made from, the saturation point, the factor (0-1), its nominal and effective
+    weight (renormalised over the factors that are present), its contribution in score points, and a `status`:
+      contributing  - evidence is present and the factor is at least LOW-to-MEDIUM sized
+      below_threshold - evidence is present and the factor is small (< 0.33): it is in the score, at a low value; this is NOT 'insufficient evidence'
+      incomplete    - evidence is present but covers only part of what is expected (e.g. a forecast for fewer than all 7 days); it is used as far as it goes
+      unavailable   - the input does not exist (for this cell or date): `missing_input` says which one and `reason` why; the factor is left out and is never treated as zero.
+    The score is the sum of the contributions: sum(weight_k * factor_k) / sum(weight_k over present factors)."""
     inp = as_inputs(env)
     g = g or factor_grids(inp, overlap)
+    anom = float(inp.anomaly[i, j])
+    run = None if inp.persistence_days is None else int(inp.persistence_days[i, j])
+    fcs = None if inp.forecast_anomaly is None else inp.forecast_anomaly[:, i, j]
+    fc_days = None if fcs is None else int(np.isfinite(fcs).sum())
+    fc_mean = None if fcs is None or not fc_days else float(np.nanmean(fcs))
+    fc_abs = None if fcs is None or not fc_days else float(np.nanmean(np.abs(fcs)))
+    blk = (i // inp.block, j // inp.block)
+    near = (g.get("regional") or {}).get(blk)
+    n_sp = None if overlap is None else (near[0] if near and blk not in overlap else overlap.get(blk, 0))
+    raw = {"anomaly": (anom, abs(anom) if np.isfinite(anom) else None), "persistence": (run, run), "forecast": (fc_mean, fc_abs), "overlap": (n_sp, n_sp)}
+    present = [k for k in ("anomaly", "persistence", "forecast", "overlap") if g["factors"][k] is not None and np.isfinite(g["factors"][k][i, j])]
+    den = sum(WEIGHTS[k] for k in present)
     rows = []
     for k in ("anomaly", "persistence", "forecast", "overlap"):
         arr = g["factors"][k]
         v = None if arr is None else float(arr[i, j])
+        shown, magnitude = raw[k]
         if v is None or not np.isfinite(v):
-            rows.append({"factor": k, "value": None, "level": None, "weight": WEIGHTS[k], "available": False,
-                         "reason": inp.unavailable.get(k) or ("no biodiversity evidence for this cell" if k == "overlap" else "no data for this cell")})
+            reason = inp.unavailable.get(k) or ("no stored biodiversity records in this 2x2 degree block: limited coverage, not evidence that no animals are present" if k == "overlap" else "no data for this cell")
+            rows.append({"factor": k, "value": None, "level": None, "weight": WEIGHTS[k], "nominal_weight": WEIGHTS[k], "effective_weight": None, "contribution": None, "available": False,
+                         "status": "unavailable", "missing_input": MISSING_INPUT.get(k, "an SST anomaly for this cell"), "reason": reason, "raw": None, "raw_unit": RAW_UNIT[k],
+                         "saturation_at": SATURATION[k], "saturated": None, "ratio": None, "normalization": NORMALIZATION[k]})
             continue
-        rows.append({"factor": k, "value": round(v, 3), "level": factor_level(v), "weight": WEIGHTS[k], "available": True,
+        status = "incomplete" if (k == "forecast" and fc_days is not None and inp.forecast_anomaly is not None and fc_days < inp.forecast_anomaly.shape[0]) else "below_threshold" if factor_level(v) == "LOW" else "contributing"
+        eff = WEIGHTS[k] / den
+        rows.append({"factor": k, "value": round(v, 3), "value_exact": v, "level": factor_level(v), "weight": WEIGHTS[k], "nominal_weight": WEIGHTS[k], "effective_weight": round(eff, 4),
+                     "contribution": round(eff * v, 4), "available": True, "status": status, "raw": None if shown is None else round(float(shown), 2), "raw_magnitude": None if magnitude is None else round(float(magnitude), 2),
+                     "raw_unit": RAW_UNIT[k], "saturation_at": SATURATION[k], "saturated": bool(magnitude is not None and magnitude >= SATURATION[k]),
+                     "ratio": None if magnitude is None else round(float(magnitude) / SATURATION[k], 2), "days_with_data": fc_days if k == "forecast" else None, "normalization": NORMALIZATION[k],
+                     **({"scope": "nearby", "distance_deg": near[1]} if k == "overlap" and near and blk not in overlap else {}),
                      **({"note": inp.notes[k]} if k in inp.notes else {})})
     score = float(g["score"][i, j])
     st = int(inp.state[i, j])
-    if not np.isfinite(score):
-        out_state = INSUFFICIENT if st == ASSESSED else st
-    else:
-        out_state = ASSESSED
-    anom = float(inp.anomaly[i, j])
-    run = None if inp.persistence_days is None else int(inp.persistence_days[i, j])
-    fc = None if inp.forecast_anomaly is None else float(np.nanmean(inp.forecast_anomaly[:, i, j]))
-    n_sp = None
-    if overlap is not None:
-        n_sp = overlap.get((i // inp.block, j // inp.block), 0)
-    reasons = [f"Sea surface temperature is {anom:+.1f} degC relative to the 2012-2023 average for this day of the year."] if np.isfinite(anom) else []
+    out_state = (INSUFFICIENT if st == ASSESSED else st) if not np.isfinite(score) else ASSESSED
+    base = baseline_text(inp)
+    reasons = [f"Sea surface temperature is {anom:+.1f} degC relative to {base} for this day of the year."] if np.isfinite(anom) else []
     if run:
         reasons.append(f"It has been above the seasonal 90th percentile for {run} days (a marine-heatwave run).")
     elif inp.persistence_days is not None:
         reasons.append("It is not currently in a marine-heatwave run (fewer than 5 consecutive days above the 90th percentile).")
     else:
         reasons.append(f"Heatwave persistence is not available for this dataset: {inp.unavailable.get('persistence', 'no heatwave state')}.")
-    if fc is not None:
-        reasons.append(f"The model forecasts an average anomaly of {fc:+.1f} degC over the next 7 days.")
+    if fc_mean is not None:
+        reasons.append(f"The model forecasts an average anomaly of {fc_mean:+.1f} degC (average size {fc_abs:.1f} degC) over the next {fc_days} days.")
     else:
         reasons.append(f"Forecast exposure is not available for this dataset: {inp.unavailable.get('forecast', 'no forecast')}.")
     bio_state = BIO_STATES[int(g["bio"][i, j])]
-    if n_sp is None:
+    if bio_state == "nearby":
+        reasons.append(f"{n_sp} distinct species have OBIS records in the nearest sampled 2x2 block, about {near[1]:g}° away (nearby records, not records at this cell).")
+    elif n_sp is None:
         reasons.append("No species-record data are loaded, so species overlap is not part of this score.")
     elif bio_state == "insufficient_coverage":
-        reasons.append("No OBIS species records exist in this 2x2 degree block; that is insufficient biodiversity coverage, not evidence that no animals are present, so species overlap is not part of this score.")
+        reasons.append("No OBIS species records exist in this 2x2 degree block; that is limited biodiversity coverage, not evidence that no animals are present, so species overlap is not part of this score.")
     elif n_sp == 0:
         reasons.append("No OBIS species records are available in this 2x2 degree block.")
     else:
-        reasons.append(f"{n_sp} species have OBIS records in this 2x2 degree block within the last {OVERLAP_WINDOW_DAYS} days.")
+        reasons.append(f"{n_sp} distinct species have OBIS records in this 2x2 degree block within the last {OVERLAP_WINDOW_DAYS} days.")
     comp = float(g["completeness"][i, j]) if "completeness" in g and np.isfinite(g["completeness"][i, j]) else None
-    return {"score": round(score, 3) if np.isfinite(score) else None, "level": level_for(score) if np.isfinite(score) else None,
+    used_rows = [r for r in rows if r["available"]]
+    return {"score": round(score, 3) if np.isfinite(score) else None, "score_exact": score if np.isfinite(score) else None, "level": level_for(score) if np.isfinite(score) else None,
             "status": STATUS_NAMES[out_state], "factors": rows, "reasons": reasons,
+            "score_breakdown": {"terms": [{"factor": r["factor"], "contribution": r["contribution"]} for r in used_rows], "sum": round(sum(r["contribution"] for r in used_rows), 3) if used_rows else None,
+                                "denominator_weight": round(den, 3), "formula": "score = sum(nominal weight x factor) / sum(nominal weights of the factors that are present)"},
             "n_species": n_sp, "biodiversity_evidence": bio_state, "evidence_completeness": None if comp is None else round(comp, 3),
             "evidence": {"anomaly_c": round(anom, 2) if np.isfinite(anom) else None, "heatwave_run_days": run,
-                         "forecast_mean_anomaly_c": None if fc is None or not np.isfinite(fc) else round(fc, 2), "n_species": n_sp, "date": inp.date},
+                         "forecast_mean_anomaly_c": None if fc_mean is None else round(fc_mean, 2), "forecast_mean_abs_anomaly_c": None if fc_abs is None else round(fc_abs, 2),
+                         "forecast_days": fc_days, "n_species": n_sp, "date": inp.date, "baseline": inp.baseline},
             "unavailable_factors": {k: inp.unavailable.get(k, "no data for this cell") for k in ("persistence", "forecast") if g["factors"][k] is None},
             "used_factors": g["used"]}
 
@@ -361,7 +422,7 @@ def species_assessment(db: Session, env, aphia_id: int, name: str) -> dict:
     share_mhw = None if env.hw is None else float(np.sum(wts * env.hw["active"][ii, jj]))
     reasons = [
         f"{len(rows)} OBIS records from the last {OVERLAP_WINDOW_DAYS} days fall in {len(cells)} grid cells of {env.area_name}.",
-        f"Weighted by record count, SST at those locations is {float(np.sum(wts * anom)):+.1f} degC from the 2012-2023 average today.",
+        f"Weighted by record count, SST at those locations is {float(np.sum(wts * anom)):+.1f} degC from {baseline_text(env)} today.",
         f"{exposed_share * 100:.0f}% of the recorded positions are in cells at least 1 degC away from normal.",
     ]
     if share_mhw is not None:
@@ -450,9 +511,11 @@ def inputs_for(dataset: str | None, date=None) -> RiskInputs:
     unavailable = dict(PACIFIC_UNAVAILABLE)
     notes: dict = {}
     forecast_anom = None
+    f_issued = f_dates = None
     try:
         from app.services import forecast_store
         fsnap, finfo, fmetrics, forigin = forecast_store.load(ds)
+        f_issued, f_dates = finfo["latest"]["observed_date"], finfo["latest"]["target_dates"]
         if finfo["latest"]["observed_date"] == str(t.date()) and fsnap["latest_forecast"].shape[1:] == anom.shape:
             forecast_anom = fsnap["latest_forecast"] - fsnap["latest_climatology"]
             unavailable.pop("forecast")
@@ -475,7 +538,8 @@ def inputs_for(dataset: str | None, date=None) -> RiskInputs:
         dataset=ds, lat=store.lat, lon=store.lon, res=store.res, bounds=ext, date=str(t.date()), anomaly=anom, state=state,
         persistence_days=persistence, hw=hw_state, forecast_anomaly=forecast_anom, unavailable=unavailable, notes=notes,
         species_sampled=False, source=dict(store.source), area_name="the Pacific dataset domain", cell_fn=cell_fn,
-        lon_origin=float(store.lon[0]) - store.res / 2,
+        lon_origin=float(store.lon[0]) - store.res / 2, baseline=store.train_period, forecast_issued=f_issued, forecast_dates=f_dates,
+        heatwave_date=None if hw is None else hw.info.get("latest_date"),
     )
     if len(_inputs_cache) > 6:
         _inputs_cache.clear()
@@ -490,7 +554,7 @@ def dataset_capabilities(dataset: str | None) -> dict:
                                   and (k != "forecast" or inp.forecast_anomaly is not None)],
             "factors_unavailable": {k: v for k, v in inp.unavailable.items()},
             "species_overlap_policy": "an empty 2x2 degree block means no records were gathered there (counted as zero overlap)" if inp.species_sampled
-            else "an empty 2x2 degree block means insufficient biodiversity coverage; overlap is left out of that cell's score rather than set to zero"}
+            else "an empty 2x2 degree block means limited biodiversity coverage; overlap is left out of that cell's score rather than set to zero"}
 
 
 def map_levels(score: np.ndarray) -> np.ndarray:
@@ -535,7 +599,7 @@ def risk_map(db: Session, dataset: str | None, region: str | None, date, max_cel
         "factors_used": g["used"], "factors_unavailable": dict(inp.unavailable),
         "lat": [round(float(x), 4) for x in lat_sel], "lon": [round(float(x), 4) for x in lon_sel],
         "values": [[ok(x) for x in row] for row in score], "levels": levels.tolist(), "status": state.tolist(),
-        "status_legend": {"0": "assessed", "1": "insufficient data (no SST anomaly to assess)", "2": "unavailable (no environmental data this day)", "3": "land",
+        "status_legend": {"0": "assessed", "1": "not assessed (no SST anomaly)", "2": "unavailable (no environmental data this day)", "3": "land",
                           "4": "outside the selected region"},
         "level_legend": {"-1": "no score", "0": "LOW", "1": "MEDIUM", "2": "HIGH", "3": "CRITICAL"},
         "min": None if not fin.size else round(float(fin.min()), 3), "max": None if not fin.size else round(float(fin.max()), 3),

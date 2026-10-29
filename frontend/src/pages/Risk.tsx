@@ -19,7 +19,7 @@ const FIELDS: FilterField[] = [
     name: "risk_level",
     label: "Risk level",
     type: "select",
-    options: ["LOW", "MEDIUM", "HIGH", "CRITICAL"].map((v) => ({ value: v, label: v })),
+    options: ["LOW", "MEDIUM", "HIGH", "CRITICAL"].map((v) => ({ value: v, label: v === "MEDIUM" ? "MODERATE" : v })),
   },
 ];
 
@@ -35,14 +35,14 @@ const COLUMNS: Column<EcologicalRiskScore>[] = [
   { header: "Risk level", cell: (r) => <Badge tone={LEVEL_TONE[r.risk_level]}>{r.risk_level}</Badge> },
 ];
 
-export default function Risk() {
+export default function Risk({ embedded = false }: { embedded?: boolean }) {
   const list = usePagedList(listRiskScores, PAGE_SIZE);
 
   return (
     <div>
-      <h1 className="text-xl font-semibold text-slate-900">Ecological Risk</h1>
+      {embedded ? <h2 className="text-lg font-semibold text-slate-900">Risk scores for recorded species</h2> : <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Ecological Risk</h1>}
       <p className="mt-1 text-sm text-slate-500">
-        Risk scores for marine species occurrences (currently placeholder data).
+        Project risk indicator for recorded marine species occurrences (potential exposure, computed by the publish-outputs job).
       </p>
       <FilterPanel fields={FIELDS} onApply={(v) => list.setFilters(toQueryParams(v))} />
       <DataTable

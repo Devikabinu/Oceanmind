@@ -170,7 +170,7 @@ function Content({ p }: { p: Performance }) {
       <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Panel title="Mean scores, three models">
           <MeanTable p={p} />
-          <p className="mt-2 text-xs text-slate-400">
+          <p className="mt-2 text-xs text-slate-500">
             Persistence = repeat the last observed map. Climatology = long-term normal for that day of the year. All
             three are scored on identical ocean cells. Bold = best in row.
           </p>

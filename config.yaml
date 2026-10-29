@@ -32,7 +32,7 @@ raw:
   # scale/offset convert source units: value*scale + offset. log10 = mask <=0 then log10 (before regridding / daily mean).
   variables:
     sst: {store: sst, var: sst, scale: 1.0, offset: 0.0, log10: false}    # NOAA OISST v2.1, already degree_C
-    # Copernicus variables (added in a later step once their dataset metadata is verified):
+    # further variables (salinity, chlorophyll, oxygen) would be added here once a source is connected:
     # sal: {store: salinity, var: so, scale: 1.0, offset: 0.0, log10: false}
     # chl: {store: chl,      var: chl, scale: 1.0, offset: 0.0, log10: true}
     # oxy: {store: oxygen,   var: o2,  scale: 1.0, offset: 0.0, log10: false, depth: 0.0}
@@ -76,7 +76,7 @@ forecast:
 
 anomaly:
   days: 1                             # 1 or 3 consecutive days stacked along channels
-  channels: [sst_anom, mask_sst]        # extend with sal, chl, oxy (+ masks) once Copernicus data is added
+  channels: [sst_anom, mask_sst]        # extend with sal, chl, oxy (+ masks) once a source for them is connected
   filter_vars: [sst]
   max_nan_frac: 0.5
   patch_size: [32, 32]                # null = full grid

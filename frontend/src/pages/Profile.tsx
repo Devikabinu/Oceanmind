@@ -7,7 +7,7 @@ export default function Profile() {
 
   return (
     <div>
-      <h1 className="text-xl font-semibold text-slate-900">Profile</h1>
+      <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Profile</h1>
       <p className="mt-1 text-sm text-slate-500">Your account details.</p>
 
       <div className="mt-6 max-w-md rounded-lg border border-slate-200 bg-white p-5">

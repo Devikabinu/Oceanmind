@@ -36,13 +36,13 @@ const FACTOR_NAME: Record<string, string> = { anomaly: "SST anomaly", persistenc
 const LEGACY_DATASET = "ne_pacific";
 const STATE_COLORS: Record<number, [number, number, number, number]> = { 1: [236, 236, 236, 235], 2: [58, 58, 58, 235] };
 const STATE_LABELS: Record<number, string> = {
-  1: "insufficient data: no SST anomaly to assess",
+  1: "not assessed: no SST anomaly",
   2: "unavailable: no environmental data this day",
   3: "land",
   4: "outside the selected region",
 };
 const STATUS_TITLE: Record<string, string> = {
-  insufficient_data: "Insufficient data",
+  insufficient_data: "Not assessed",
   unavailable: "Unavailable",
   land: "Land",
   outside_region: "Outside the selected region",
@@ -50,7 +50,7 @@ const STATUS_TITLE: Record<string, string> = {
 const BIO_TEXT: Record<string, string> = {
   observed: "Observed: OBIS records exist in this 2°×2° block",
   none_recorded: "None recorded (records were gathered for this area)",
-  insufficient_coverage: "Insufficient coverage: no records here, which is not the same as no animals",
+  insufficient_coverage: "Limited coverage: no stored records here, which is not the same as no animals",
   unavailable: "Unavailable: no biodiversity data loaded",
 };
 const lonLabel = (lon: number) => `${Math.abs(lon).toFixed(1)}°${lon < 0 ? "W" : "E"}`;
@@ -253,7 +253,7 @@ function Areas() {
                 <ul className="mt-1 space-y-0.5 border-t border-white/20 pt-1">
                   <li className="flex items-center gap-1.5"><span aria-hidden className="inline-block h-2.5 w-2.5 rounded-sm ring-1 ring-white/70" style={{ background: "rgb(236,236,236)" }} />Insufficient data (not low risk)</li>
                   <li className="flex items-center gap-1.5"><span aria-hidden className="inline-block h-2.5 w-2.5 rounded-sm ring-1 ring-white/70" style={{ background: "rgb(58,58,58)" }} />Unavailable (not low risk)</li>
-                  <li className="text-cyan-100/80">Low &lt; 0.25 · Medium &lt; 0.5 · High &lt; 0.75 · Critical</li>
+                  <li className="text-cyan-100/80">Low &lt; 0.25 · Moderate &lt; 0.5 · High &lt; 0.75 · Critical</li>
                 </ul>
               ) : undefined
             }
@@ -474,7 +474,7 @@ export default function EcologicalRisk() {
       <details className="mt-8 rounded-lg border border-slate-200 bg-white p-4">
         <summary className="cursor-pointer text-sm font-semibold text-slate-900">Stored per-record risk scores (database)</summary>
         <p className="mt-2 text-sm text-slate-600">One row per recent OBIS record, scored against the latest conditions at that position.</p>
-        <Risk />
+        <Risk embedded />
       </details>
     </div>
   );

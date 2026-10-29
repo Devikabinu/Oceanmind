@@ -23,19 +23,6 @@ DEFAULT_DATA_SOURCES = [
         status=DataSourceStatus.ACTIVE,
     ),
     DataSource(
-        name="Copernicus Marine SST",
-        provider="Copernicus Marine Service (CMEMS)",
-        dataset="Global Ocean OSTIA Sea Surface Temperature and Sea Ice Analysis / GMPE Multi-Product Ensemble",
-        version="latest",
-        description=(
-            "Copernicus Marine Global Ocean Multi-Product Ensemble (GMPE) sea surface "
-            "temperature, used here as a secondary SST source for cross-validation "
-            "against NOAA OISST."
-        ),
-        source_url="https://data.marine.copernicus.eu/products?facets=mainVariables%7ESea+surface+temperature",
-        status=DataSourceStatus.ACTIVE,
-    ),
-    DataSource(
         name="OBIS",
         provider="Ocean Biodiversity Information System",
         dataset="OBIS marine species occurrence records",

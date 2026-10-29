@@ -1,3 +1,4 @@
+import { providerLabel } from "../utils/format";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { getDates, getDatasets, getForecastMap, getMap, getRegions, getSpeciesLayer } from "../api/environment";
@@ -5,6 +6,7 @@ import { getHeatwaveMap, getRiskMap, getSpeciesDistribution, listHeatwaves, list
 import { listAlerts } from "../api/modelOutputs";
 import type { MapLayer } from "../api/monitor";
 import LocationReport from "../components/LocationReport";
+import DataDatesNote from "../components/DataDatesNote";
 import SstMap from "../components/SstMap";
 import type { MapMarker } from "../components/SstMap";
 import { useActive } from "../contexts/ActiveSelection";
@@ -14,9 +16,9 @@ import { axisOrigin, extentToBounds, riskToMapLayer, toMapLayer } from "../utils
 
 type Base = "sst" | "anomaly" | "heatwave" | "risk" | "forecast_sst" | "forecast_anomaly";
 const GROUPS: { title: string; ids: Base[] }[] = [
-  { title: "Ocean conditions", ids: ["sst", "anomaly"] },
-  { title: "Hazards", ids: ["heatwave", "risk"] },
-  { title: "Forecast", ids: ["forecast_sst", "forecast_anomaly"] },
+  { title: "Observed", ids: ["sst", "anomaly"] },
+  { title: "Derived indicators", ids: ["heatwave", "risk"] },
+  { title: "Model output", ids: ["forecast_sst", "forecast_anomaly"] },
 ];
 const BASES: { id: Base; label: string; hint: string }[] = [
   { id: "sst", label: "SST", hint: "How warm is the ocean?" },
@@ -32,7 +34,7 @@ const SEV_COLOR: Record<string, string> = { CRITICAL: "#7f1d1d", HIGH: "#c2410c"
 const STATUS_FILTERS: Record<string, string[]> = { THREATENED: ["CR", "EN", "VU"], CR: ["CR"], EN: ["EN"], VU: ["VU"], NT: ["NT"] };
 const SEV_RANK: Record<string, number> = { LOW: 0, MEDIUM: 1, HIGH: 2, CRITICAL: 3 };
 const STATE_COLORS: Record<number, [number, number, number, number]> = { 1: [236, 236, 236, 235], 2: [58, 58, 58, 235] };
-const STATE_LABELS: Record<number, string> = { 1: "insufficient data: no anomaly to assess", 2: "unavailable: no data this day", 3: "land", 4: "outside the selected region" };
+const STATE_LABELS: Record<number, string> = { 1: "not assessed: no SST anomaly", 2: "unavailable: no data this day", 3: "land", 4: "outside the selected region" };
 const field = "flex min-w-0 max-w-full flex-col gap-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-cyan-100/90";
 const sel = "w-full min-w-0 max-w-full rounded-md border border-white/30 bg-white px-2 py-1.5 text-sm font-normal normal-case tracking-normal text-slate-900";
 const LEGACY = "ne_pacific";
@@ -54,11 +56,8 @@ export default function OceanMapPage() {
   const [limitToRegion, setLimitToRegion] = useState(false);
   const [minSeverity, setMinSeverity] = useState<string>(qs.get("severity") ?? "ALL");
   const [densityId, setDensityId] = useState<number | null>(null);
-  const [selected, setSelected] = useState<{ lat: number; lon: number } | null>(() => {
-    const la = Number(qs.get("lat"));
-    const lo = Number(qs.get("lon"));
-    return qs.get("lat") && qs.get("lon") && Number.isFinite(la) && Number.isFinite(lo) ? { lat: la, lon: lo } : null;
-  });
+  const selected = act.point;                                  // shared with the dashboard's historical SST graph
+  const setSelected = act.setPoint;
   const dataset = act.dataset;
   const region = act.region; // the selected region only ZOOMS the map; data are always requested for the whole dataset so the map never turns into a region-shaped cut-out
   const dataRegion = "pacific";
@@ -147,6 +146,7 @@ export default function OceanMapPage() {
 
   return (
     <div>
+      <h1 className="sr-only">Pacific Ocean map</h1>
       <div className="on-deep rounded-t-xl bg-gradient-to-r from-deep via-abyss to-tide px-3 py-2.5 text-white">
         <button type="button" className="mb-1 rounded-md border border-white/30 px-3 py-1 text-sm font-medium xl:hidden" aria-expanded={controlsOpen} onClick={() => setControlsOpen((o) => !o)}>
           {controlsOpen ? "Hide layers and controls" : `Layers and controls · ${BASES.find((b) => b.id === effBase)?.label}`}
@@ -156,8 +156,8 @@ export default function OceanMapPage() {
             <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-cyan-100/90">Base layer</span>
             <div role="radiogroup" aria-label="Map layer" className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
               {GROUPS.map((grp) => (
-                <div key={grp.title} className="flex items-center gap-1.5">
-                  <span className="hidden text-[10px] uppercase tracking-wider text-cyan-200/70 2xl:inline">{grp.title}</span>
+                <div key={grp.title} role="group" aria-label={grp.title} className="flex flex-col gap-0.5">
+                  <span className="text-[11px] uppercase tracking-wider text-cyan-100/90">{grp.title}</span>
                   <div className="flex overflow-hidden rounded-md border border-white/30">
               {BASES.filter((b) => grp.ids.includes(b.id)).map((b) => {
                 const off = !hasForecast && b.id.startsWith("forecast");
@@ -219,7 +219,7 @@ export default function OceanMapPage() {
               <span className="text-cyan-100/90">Severity</span>
               <select aria-label="Alert severity" className="rounded border border-white/30 bg-white px-1 py-0.5 text-xs text-slate-900" value={minSeverity} onChange={(ev) => setMinSeverity(ev.target.value)}>
                 <option value="ALL">All</option>
-                <option value="MEDIUM">Medium and above</option>
+                <option value="MEDIUM">Moderate and above</option>
                 <option value="HIGH">High and above</option>
                 <option value="CRITICAL">Critical only</option>
               </select>
@@ -241,6 +241,7 @@ export default function OceanMapPage() {
       </div>
       {mapError && <div role="alert" className="bg-amber-50 px-4 py-2 text-sm text-amber-900">{dsError ?? `Map data unavailable: ${baseState.error}`}</div>}
 
+      <DataDatesNote />
       <div className="grid grid-cols-1 gap-3 pt-3 xl:grid-cols-[minmax(0,1fr)_25rem]">
         <div>
           <SstMap
@@ -273,7 +274,7 @@ export default function OceanMapPage() {
           <div className="mt-1 flex flex-wrap items-center justify-between gap-x-4 text-xs text-slate-600">
             <span>
               {layer ? `${layer.label} · ${layer.date}` : "Loading…"}
-              {dsOk && ` · Data source: ${dsOk.name} · latest ${dsOk.latest_date}`}
+              {dsOk && (effBase.startsWith("forecast") ? ` · Model output (ConvLSTM), not an observation · issued from ${dsOk.latest_date} · observations: ${providerLabel(dsOk.provider)}` : ` · Data source: ${providerLabel(dsOk.provider)} · latest ${dsOk.latest_date}`)}
             </span>
             <span>Click the ocean, a species marker or an alert for the full report.</span>
           </div>

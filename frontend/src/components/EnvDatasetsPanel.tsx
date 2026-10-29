@@ -28,7 +28,7 @@ function Dataset({ d }: { d: EnvironmentDatasetAvailable }) {
         <div><dt className="text-xs font-medium uppercase text-slate-500">Provider</dt><dd>{d.provider.source?.provider ?? providerLabel(d.provider)}</dd></div>
         <div><dt className="text-xs font-medium uppercase text-slate-500">Dataset</dt><dd>{d.provider.source?.dataset ?? d.name}</dd></div>
         {d.provider.source?.reference_url && (
-          <div><dt className="text-xs font-medium uppercase text-slate-500">Reference</dt><dd><a className="underline" href={d.provider.source.reference_url} target="_blank" rel="noreferrer">{d.provider.source.reference_url}</a></dd></div>
+          <div><dt className="text-xs font-medium uppercase text-slate-500">Reference</dt><dd className="break-all"><a className="underline" href={d.provider.source.reference_url} target="_blank" rel="noreferrer">{d.provider.source.reference_url}</a></dd></div>
         )}
         {d.provider.source?.urls && d.provider.source.urls.length > 0 && (
           <div className="md:col-span-2"><dt className="text-xs font-medium uppercase text-slate-500">Access points</dt><dd className="break-all">{d.provider.source.urls.map((u) => <a key={u} className="mr-3 underline" href={u} target="_blank" rel="noreferrer">{u}</a>)}</dd></div>
@@ -41,6 +41,7 @@ function Dataset({ d }: { d: EnvironmentDatasetAvailable }) {
             <dd>
               <span className={`mr-2 rounded px-1.5 py-0.5 text-xs font-semibold ${d.freshness.status === "current" ? "bg-emerald-100 text-emerald-900" : d.freshness.status === "delayed" ? "bg-amber-100 text-amber-900" : "bg-red-100 text-red-900"}`}>{d.freshness.status}</span>
               Observation date {d.freshness.observation_date}. {d.freshness.message}
+              {d.freshness.refresh && <span className="mt-0.5 block text-xs text-slate-600">Last automatic refresh {d.freshness.refresh.attempted_at.slice(0, 16).replace("T", " ")} UTC: {d.freshness.refresh.message}</span>}
             </dd>
           </div>
         )}
@@ -55,6 +56,7 @@ function Dataset({ d }: { d: EnvironmentDatasetAvailable }) {
         <div><dt className="text-xs font-medium uppercase text-slate-500">Climatology / baseline</dt><dd>{d.baseline ? `${d.baseline[0]} to ${d.baseline[1]}. ` : ""}{d.climatology ?? "not recorded"}</dd></div>
         <div className="md:col-span-2"><dt className="text-xs font-medium uppercase text-slate-500">Processing</dt><dd>{d.processing}</dd></div>
         <div><dt className="text-xs font-medium uppercase text-slate-500">Update method</dt><dd>{d.update_method}</dd></div>
+        {d.forecast_methodology && <div className="md:col-span-3"><dt className="text-xs font-medium uppercase text-slate-500">Forecast methodology</dt><dd>{d.forecast_methodology}</dd></div>}
         <div className="md:col-span-3"><dt className="text-xs font-medium uppercase text-slate-500">Limitations</dt><dd><ul className="list-disc pl-5">{d.limitations?.map((l) => <li key={l}>{l}</li>)}</ul></dd></div>
         <div><dt className="text-xs font-medium uppercase text-slate-500">Spatial coverage</dt><dd>{e.lat_min}° to {e.lat_max}° N, {lonText(e.lon_min)} to {lonText(e.lon_max)}</dd></div>
         <div><dt className="text-xs font-medium uppercase text-slate-500">Resolution and grid</dt><dd>{d.resolution_deg}° · {d.grid_shape[0]} × {d.grid_shape[1]} cells</dd></div>

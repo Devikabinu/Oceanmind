@@ -55,6 +55,47 @@ def processed_last_day(out: Path) -> str | None:
     return last
 
 
+def staged_build(config: str, out: Path, store: Path) -> None:
+    """Build the whole new generation (cubes, climatology, anomalies, forecast from the newest observation, marine heatwaves) in `<out>.staging`, check it, and only then replace the
+    live dataset in one swap. The application keeps serving the previous generation until the swap; if any step fails the live dataset is untouched."""
+    from oceanmind_environment import publish as pub
+    from oceanmind_environment.refresh_status import check_consistency
+    note = pub.recover(out)
+    if note:
+        print(note)
+    stage_dir = pub.staging_dir(out)
+    shutil.rmtree(stage_dir, ignore_errors=True)
+    cfg_file = ROOT / "config.pacific.staging.yaml"
+    cfg_file.write_text(f"extends: {config}" + chr(10) + "paths:" + chr(10) + f"  out_dir: {stage_dir.name}" + chr(10), encoding="utf-8")
+    try:
+        run(["-m", "oceanmind_preprocess", "build", "--config", cfg_file.name])
+        if (out / "model").exists():                                       # the trained weights and their origin (not retrained by a refresh)
+            shutil.copytree(out / "model", stage_dir / "model", dirs_exist_ok=True)
+        run(["-m", "oceanmind_model", "evaluate", "--config", cfg_file.name])
+        run(["-m", "oceanmind_model", "export-dashboard", "--config", cfg_file.name])
+        check = check_consistency(stage_dir, store, ignore=("sst_history",))
+        if not check["consistent"]:
+            raise RuntimeError("the new generation is inconsistent and was not published: " + "; ".join(check["problems"]))
+        kept = pub.carry_over(out, stage_dir)
+        if kept:
+            print("kept from the live dataset:", ", ".join(kept))
+        marker = ROOT / "data" / "dataset_rebuild.lock"                     # tells a running API to let go of the cubes it has mapped (Windows cannot rename a mapped directory)
+        marker.parent.mkdir(parents=True, exist_ok=True)
+        marker.write_text("publishing")
+        try:
+            time.sleep(5)                                                  # the API checks the marker every 2 seconds
+            prev = pub.swap(out, stage_dir)
+        finally:
+            marker.unlink(missing_ok=True)
+        print(f"published generation ending {check['latest']}; forecast {check['forecast_dates'][0]} to {check['forecast_dates'][-1]}")
+        pub.finalize(prev)
+    finally:
+        cfg_file.unlink(missing_ok=True)
+        if stage_dir.exists():                                             # a failed build leaves nothing behind
+            shutil.rmtree(stage_dir, ignore_errors=True)
+    run(["-m", "app.jobs", "build-sst-history", "--dataset", "pacific"], cwd=ROOT / "backend")      # daily regional means behind the Historical SST graph
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--config", default=CONFIG)
@@ -79,21 +120,17 @@ def main() -> int:
 
     if "climate" in want:
         run(["-m", "app.jobs", "sync-climate-indices"], cwd=ROOT / "backend")      # ONI (NOAA CPC) and PDO (NOAA NCEI): labelled context for anomaly explanations
+    published_staged = False
     if "build" in want:
         if not stale and args.only != "build":
             print("processed data are up to date with the source: build skipped")
         else:
-            keep = out / "model"
-            backup = ROOT / ".refresh_model_backup"
-            if keep.exists():
-                shutil.rmtree(backup, ignore_errors=True)
-                shutil.copytree(keep, backup)
-            run(["-m", "oceanmind_preprocess", "build", "--config", args.config])
-            if backup.exists():
-                shutil.copytree(backup, keep, dirs_exist_ok=True)       # trained weights and their origin survive a rebuild
-                shutil.rmtree(backup, ignore_errors=True)
+            staged_build(args.config, out, store)
+            published_staged = True
     if "evaluate" in want:
-        if not stale and args.only != "evaluate" and (out / "model" / "dashboard" / "heatwave_history.json").exists():
+        if published_staged:
+            print("forecast and heatwave results were built and published together with the dataset: evaluate skipped")
+        elif not stale and args.only != "evaluate" and (out / "model" / "dashboard" / "heatwave_history.json").exists():
             print("forecast and heatwave results are up to date: evaluate skipped")
         else:
             run(["-m", "oceanmind_model", "evaluate", "--config", args.config])

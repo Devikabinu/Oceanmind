@@ -1,3 +1,4 @@
+import { providerLabel } from "../utils/format";
 import { Link } from "react-router-dom";
 import { getForecast, getSpeciesLayer, getSummary } from "../api/environment";
 import { getBiodiversitySummary, getRiskMap, listHeatwaves } from "../api/intelligence";
@@ -11,6 +12,8 @@ import ContextBar from "./ContextBar";
 import DashSection, { Metric } from "./DashSection";
 import EmptyState from "./EmptyState";
 import PageHeader from "./PageHeader";
+import HistoricalSst from "./HistoricalSst";
+import DataDatesNote from "./DataDatesNote";
 import Status from "./Status";
 import Term from "./Term";
 
@@ -55,7 +58,7 @@ export default function PacificDashboard() {
   const R = fresh(risk);
   const H = hw.data && !hw.isLoading && (hw.data.dataset ?? "ne_pacific") === act.dataset ? hw.data : null;
   const gen = S ? S.kind === "generated" : A ? A.kind === "generated" : false;
-  const src = S ? S.dataset.name : "";
+  const src = S ? providerLabel(S.provider) : "";
   const counts = R ? (R.levels as number[][]).flat().filter((l) => l >= 0) : [];
   const share = (min: number) => (counts.length ? (100 * counts.filter((l) => l >= min).length) / counts.length : null);
   const events = H?.items ?? [];
@@ -71,6 +74,8 @@ export default function PacificDashboard() {
         <ContextBar showDate />
       </div>
 
+      <DataDatesNote />
+
       <nav aria-label="From conditions to alerts" className="mt-4 overflow-x-auto">
         <ol className="flex min-w-max items-stretch gap-1 text-xs">
           {FLOW.map((f, i) => (
@@ -79,7 +84,7 @@ export default function PacificDashboard() {
                 <span className="block font-semibold text-slate-900">{f.label}</span>
                 <span className="block text-slate-600">{f.sub}</span>
               </Link>
-              {i < FLOW.length - 1 && <span aria-hidden className="text-slate-400">→</span>}
+              {i < FLOW.length - 1 && <span aria-hidden className="text-slate-500">→</span>}
             </li>
           ))}
         </ol>
@@ -119,7 +124,8 @@ export default function PacificDashboard() {
                   note={`${signed(F.forecast_anomaly[F.forecast_anomaly.length - 1])} °C versus the daily climatology for ${F.target_dates[F.target_dates.length - 1]}.`}
                   meta={`Issued from ${F.issued_from} · ${F.model.name}`}
                 />
-                <p className="text-xs text-slate-700">
+                <p className={`rounded-md border px-2 py-1.5 text-xs ${F.performance ? (F.performance.beats_persistence ? "border-emerald-200 bg-emerald-50 text-emerald-900" : "border-amber-200 bg-amber-50 text-amber-900") : "border-slate-200 bg-slate-50 text-slate-700"}`} data-testid="persistence-note">
+                  <strong className="font-semibold">Benchmark: </strong>
                   {F.performance
                     ? F.performance.beats_persistence
                       ? "Measured on this dataset, the model beat persistence at every horizon."
@@ -147,16 +153,29 @@ export default function PacificDashboard() {
           </Status>
         </DashSection>
 
+        <div className="md:col-span-2 xl:col-span-3">
+          <HistoricalSst />
+        </div>
+
         <DashSection title="Biodiversity" to={`/ocean-map${mq({ species: "1" })}`} linkLabel="Show species on the map" tag="observed">
           <Status isLoading={bio.isLoading} error={bio.error} hasData={!!bio.data}>
             {bio.data && (
               <>
-                <Metric
-                  label="Species with stored records"
-                  value={String(bio.data.species_with_records)}
-                  note={`${bio.data.n_species} species catalogued; ${bio.data.n_records.toLocaleString()} OBIS records stored.`}
-                  meta="Source OBIS (with IUCN categories). Records are a time-spread selection per watch-list species; where none were retrieved the coverage is insufficient, which is not an absence of species."
-                />
+                {exposure.data && !exposure.isLoading && exposure.data.dataset === act.dataset ? (
+                  exposure.data.summary.records > 0 ? (
+                    <Metric
+                      label={`Species observations in this region (last ${Math.round(exposure.data.summary.window_days / 365)} years)`}
+                      value={exposure.data.summary.records.toLocaleString()}
+                      note={`${exposure.data.summary.species} distinct species recorded in the ${exposure.data.region.name}, at ${exposure.data.summary.points_total.toLocaleString()} locations.`}
+                      meta={`Counted: stored OBIS observations inside this region within the window. Catalogue totals, all areas and dates: ${bio.data.n_records.toLocaleString()} observations of ${bio.data.species_with_records} species. Records are a time-spread selection, not a survey.`}
+                    />
+                  ) : (
+                    <Metric label="Species observations in this region" value="Limited coverage" note="No stored biodiversity observations fall in this region and time period. That is a sampling gap, not an absence of species."
+                      meta={`Catalogue totals, all areas and dates: ${bio.data.n_records.toLocaleString()} observations of ${bio.data.species_with_records} species.`} />
+                  )
+                ) : (
+                  <Metric label="Species observations in this region" value="…" note="Counting the stored observations in this region." meta={`Catalogue totals, all areas and dates: ${bio.data.n_records.toLocaleString()} observations of ${bio.data.species_with_records} species.`} />
+                )}
                 {exposure.data && !exposure.isLoading && exposure.data.dataset === act.dataset && (
                   <Metric
                     label="Species exposure"

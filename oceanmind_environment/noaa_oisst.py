@@ -26,6 +26,7 @@ from scipy import ndimage
 from .base import DateNotAvailable, EnvironmentalDataProvider, ProviderMetadata
 from .pacific_config import PacificDomainConfig
 from .pacific_mask import NON_PACIFIC_BOXES
+from .schedule import discover_latest, expected_latest, lag_status, trim_incomplete_tail
 
 log = logging.getLogger("oceanmind.environment.noaa_oisst")
 
@@ -172,11 +173,18 @@ def _ncei_day(day: pd.Timestamp, lat_vals: np.ndarray, lon_vals: np.ndarray, cac
         name = f"oisst-avhrr-v02r01.{day:%Y%m%d}{'_preliminary' if prelim else ''}.nc"
         f = cache / f"ncei_{name}"
         if not f.exists():
-            try:
-                r = requests.get(f"{NCEI_DAILY}/{day:%Y%m}/{name}", timeout=(15, 120), headers={"User-Agent": "oceanmind-environment/1.0"})
-            except requests.RequestException:
-                continue
-            if r.status_code != 200:
+            r = None
+            for attempt in range(3):                              # a timeout or a 5xx is retried; a 404 means the file is not published (yet)
+                try:
+                    r = requests.get(f"{NCEI_DAILY}/{day:%Y%m}/{name}", timeout=(15, 120), headers={"User-Agent": "oceanmind-environment/1.0"})
+                except requests.RequestException:
+                    r = None
+                else:
+                    if r.status_code == 200 or r.status_code not in RETRY_STATUS:
+                        break
+                if attempt < 2:
+                    time.sleep(2 ** attempt)
+            if r is None or r.status_code != 200:
                 continue
             part = f.with_suffix(".part")
             part.write_bytes(r.content)
@@ -221,9 +229,14 @@ def sync(cfg_dict: dict, force_tail: bool = True) -> dict:
     cache, store = _paths(cfg_dict)
     cache.mkdir(parents=True, exist_ok=True)
     start = pd.Timestamp(t["start"]).normalize()
-    final_days, nrt_days = server_days("final"), server_days("preliminary")
+    try:
+        final_days, nrt_days = server_days("final"), server_days("preliminary")
+    except SourceError as exc:
+        log.warning("ERDDAP unreachable (%s); trying the NCEI archive for the days after the stored record", str(exc)[:120])
+        return extend_from_ncei(cfg_dict, str(exc))
     final_last, nrt_last = final_days[-1], nrt_days[-1]
-    end = nrt_last
+    newest = discover_latest(final_days, nrt_days)                  # the newest day any product offers: never a fixed date
+    assert newest == max(final_last, nrt_last)
     lat_end = _lat_end(float(d["lat_max"]))
     windows = _windows(float(d["lon_max"]))
     log.info("NOAA OISST: final through %s, preliminary through %s", final_last.date(), nrt_last.date())
@@ -272,7 +285,8 @@ def sync(cfg_dict: dict, force_tail: bool = True) -> dict:
         times.append(da.time.values)
         flags.append(np.full(da.sizes["time"], product == "preliminary"))
     covered = pd.DatetimeIndex(np.concatenate(times)) if times else pd.DatetimeIndex([])
-    gap_days = pd.date_range(start, nrt_last).difference(covered)
+    # days after the newest ERDDAP day are tried in the NCEI archive too, which can publish the preliminary file before the aggregation lists it
+    gap_days = pd.date_range(start, max(nrt_last, expected_latest())).difference(covered)
     lat_vals = LAT_START + np.arange(int((lat_end - LAT_START) // 1) + 1)
     lon_vals = np.round(LON_START + np.arange(int(float(d["lon_max"]) - LON_START) + 1), 4)
     filled, still_missing = [], []
@@ -290,30 +304,153 @@ def sync(cfg_dict: dict, force_tail: bool = True) -> dict:
     if filled:
         log.info("%d day(s) missing from the ERDDAP aggregation were taken from the NCEI daily files: %s", len(filled), ", ".join(filled))
     if still_missing:
-        log.warning("%d day(s) have no data in either source and stay missing: %s", len(still_missing), ", ".join(still_missing))
+        log.warning("%d day(s) have no data in either source and stay missing (days newer than the last published one are simply not available yet): %s", len(still_missing), ", ".join(still_missing))
     sst = xr.concat(arrays, dim="time").astype("float32")
     prelim = np.concatenate(flags)
     sst = sst.assign_coords(preliminary=("time", prelim)).sortby("time")
+    # a trailing day that arrived (nearly) empty is not an observation: the newest valid day is the last complete one
+    kept, trimmed = trim_incomplete_tail(pd.DatetimeIndex(sst.time.values), np.isfinite(sst.values).sum(axis=(1, 2)))
+    if trimmed:
+        log.warning("%d trailing day(s) were incomplete and are not used: the newest valid observation is %s", trimmed, kept[-1].date())
+        sst = sst.isel(time=slice(0, len(kept)))
+    nrt_last = pd.Timestamp(sst.time.values[-1])
+    attrs = dict(provider=PROVIDER_ID, citation=CITATION, final_through=str(final_last.date()), preliminary_through=str(nrt_last.date()),
+                 synced_at=datetime.now(timezone.utc).isoformat(timespec="seconds"), stride=STRIDE, source=" | ".join(PRODUCTS[k]["label"] for k in ("final", "preliminary")))
+    out = _publish(sst, store, attrs)
+    if not out["updated"]:
+        return out
+    return {**out, "trimmed_days": int(trimmed), "final_through": str(final_last.date()), "preliminary_through": str(nrt_last.date()), "gap_days_from_ncei": len(filled),
+            "days_without_data": still_missing, "downloaded_files": downloaded, "cached_files": reused}
+
+
+def validate_record(sst: xr.DataArray) -> dict:
+    """Checks the merged record before it can replace the stored one; anything wrong raises SourceError and the previous valid store stays in place.
+    Checked: unique and increasing timestamps, coordinate ranges and orientation (latitude and the continuous east-positive longitude both ascending), the physical SST range,
+    and that the newest day has data. Days that simply do not exist are reported (`missing_days`), not invented."""
+    t = pd.DatetimeIndex(sst.time.values)
+    if t.has_duplicates:
+        raise SourceError(f"duplicate timestamps in the record ({int(t.duplicated().sum())})")
+    if not t.is_monotonic_increasing:
+        raise SourceError("timestamps are not in increasing order")
+    lat, lon = np.asarray(sst["lat"].values, dtype="float64"), np.asarray(sst["lon"].values, dtype="float64")
+    if not (np.isfinite(lat).all() and lat.min() >= -90 and lat.max() <= 90):
+        raise SourceError("latitudes outside -90..90")
+    if not (np.isfinite(lon).all() and lon.min() >= 0 and lon.max() <= 360):
+        raise SourceError("longitudes outside the 0..360 east-positive convention")
+    if not (np.diff(lat) > 0).all() or not (np.diff(lon) > 0).all():
+        raise SourceError("coordinates are not strictly ascending (latitude south to north, longitude west to east)")
+    v = sst.isel(time=-1).values
+    if not np.isfinite(v).any():
+        raise SourceError("the newest day has no valid ocean values")
+    mn, mx = float(np.nanmin(sst.values)), float(np.nanmax(sst.values))
+    if mn < VALID_RANGE[0] or mx > VALID_RANGE[1]:
+        raise SourceError(f"SST outside the physical range {VALID_RANGE} (min {mn:.2f}, max {mx:.2f})")
+    expected = pd.date_range(t[0], t[-1], freq="D")
+    return {"checked": ["unique timestamps", "increasing order", "coordinate ranges", "coordinate orientation", "SST range", "newest day has data"],
+            "missing_days": int(len(expected.difference(t))), "first": str(t[0].date()), "last": str(t[-1].date())}
+
+
+def swap_store(tmp: Path, store: Path) -> None:
+    """Replace the stored record by the new one without a moment in which no valid record exists: the old store is renamed aside, the new one renamed into place, and the old one
+    put back if that fails. A crash between the two renames is repaired by `recover_store`."""
+    import shutil
+    old = store.with_name(store.name + ".old")
+    shutil.rmtree(old, ignore_errors=True)
+    had = store.exists()
+    if had:
+        store.rename(old)
+    try:
+        tmp.rename(store)
+    except OSError:
+        if had and old.exists() and not store.exists():
+            old.rename(store)
+        raise
+    shutil.rmtree(old, ignore_errors=True)
+
+
+def recover_store(store: Path) -> bool:
+    """A store that is missing while its previous version exists beside it (an interrupted swap) gets that version back."""
+    old = store.with_name(store.name + ".old")
+    if not store.exists() and old.exists():
+        old.rename(store)
+        return True
+    return False
+
+
+def _publish(sst: xr.DataArray, store: Path, attrs: dict) -> dict:
+    """Write the merged record as the new store, atomically, unless that would replace a newer stored record by an older one."""
+    checks = validate_record(sst)
     sst.name = "sst"
     sst.attrs = {"units": "degree_C", "long_name": VARIABLES["sst"]["long_name"]}
     ds_out = sst.to_dataset()
-    ds_out.attrs.update(provider=PROVIDER_ID, citation=CITATION, final_through=str(final_last.date()), preliminary_through=str(nrt_last.date()),
-                        synced_at=datetime.now(timezone.utc).isoformat(timespec="seconds"), stride=STRIDE,
-                        source=" | ".join(PRODUCTS[k]["label"] for k in ("final", "preliminary")))
+    ds_out.attrs.update(attrs)
     ds_out = ds_out.chunk({"time": 366, "lat": ds_out.sizes["lat"], "lon": ds_out.sizes["lon"]})
     store.parent.mkdir(parents=True, exist_ok=True)
+    new_last = pd.Timestamp(sst.time.values[-1])
+    recover_store(store)
+    if store.exists():                                             # never replace a good record by an older one (a source that dropped its newest days)
+        try:
+            with xr.open_zarr(store) as old:
+                old_last = pd.Timestamp(old.time.values[-1])
+                same = (old.sizes["time"] == sst.sizes["time"] and old_last == new_last and (pd.DatetimeIndex(old.time.values) == pd.DatetimeIndex(sst.time.values)).all()
+                        and np.array_equal(old["sst"].values, sst.values, equal_nan=True) and np.array_equal(np.asarray(old["preliminary"].values, dtype=bool), np.asarray(sst["preliminary"].values, dtype=bool)))
+        except Exception:  # noqa: BLE001 - an unreadable old store is replaced
+            old_last, same = None, False
+        if old_last is not None and old_last > new_last:
+            return {"updated": False, "reason": "source_older_than_stored", "latest": str(old_last.date()), "source_latest": str(new_last.date()), **lag_status(old_last), "store": str(store)}
+        if same:                                                   # running the refresh again changes nothing
+            return {"updated": False, "reason": "unchanged", "validation": checks, **lag_status(old_last), "days": int(sst.sizes["time"]), "first": str(pd.Timestamp(sst.time.values[0]).date()),
+                    "last": str(old_last.date()), "store": str(store)}
+    import shutil
     tmp = store.with_name(store.name + ".tmp")
     if tmp.exists():
-        import shutil
         shutil.rmtree(tmp)
     ds_out.to_zarr(tmp, mode="w")
-    if store.exists():
-        import shutil
-        shutil.rmtree(store)
-    tmp.rename(store)
-    return {"days": int(sst.sizes["time"]), "first": str(pd.Timestamp(sst.time.values[0]).date()), "last": str(pd.Timestamp(sst.time.values[-1]).date()),
-            "final_through": str(final_last.date()), "preliminary_through": str(nrt_last.date()), "gap_days_from_ncei": len(filled), "days_without_data": still_missing, "downloaded_files": downloaded, "cached_files": reused,
-            "store": str(store)}
+    try:                                                         # the new record must be readable before it replaces the old one
+        with xr.open_zarr(tmp) as chk:
+            if pd.Timestamp(chk.time.values[-1]) != new_last or chk.sizes["time"] != sst.sizes["time"]:
+                raise SourceError("the written record does not match the validated one")
+    except SourceError:
+        shutil.rmtree(tmp, ignore_errors=True)
+        raise
+    except Exception as exc:  # noqa: BLE001
+        shutil.rmtree(tmp, ignore_errors=True)
+        raise SourceError(f"the written record could not be read back: {exc}") from exc
+    swap_store(tmp, store)
+    return {"updated": True, "validation": checks, **lag_status(new_last), "days": int(sst.sizes["time"]), "first": str(pd.Timestamp(sst.time.values[0]).date()), "last": str(new_last.date()), "store": str(store)}
+
+
+def extend_from_ncei(cfg_dict: dict, reason: str = "") -> dict:
+    """Fallback when the ERDDAP aggregation cannot be reached: append the days after the stored record from the NCEI daily files (the source of the aggregation), up to the day
+    expected today. The first day NCEI has not published ends the run, so the record stays contiguous. The stored days are kept as they are; without a stored record there is
+    nothing to extend and the failure is reported."""
+    cache, store = _paths(cfg_dict)
+    if not store.exists():
+        raise SourceError(f"{reason or 'ERDDAP unreachable'}; and there is no stored record to extend")
+    with xr.open_zarr(store) as z:
+        old = z["sst"].load()
+        prelim_old = np.asarray(z["preliminary"].values, dtype=bool)
+        old_attrs = dict(z.attrs)
+    last = pd.Timestamp(old.time.values[-1])
+    lat_vals, lon_vals = old.lat.values, old.lon.values
+    cache.mkdir(parents=True, exist_ok=True)
+    new, flags = [], []
+    for day in pd.date_range(last + pd.Timedelta(days=1), expected_latest()):
+        got = _ncei_day(day, lat_vals, lon_vals, cache)
+        if got is None:
+            break
+        da, is_prelim = got
+        new.append(da.expand_dims(time=[day.to_datetime64()]).assign_coords(lat=lat_vals, lon=lon_vals))
+        flags.append(bool(is_prelim))
+    if not new:
+        return {"updated": False, "reason": "no_newer_data", "source": "NCEI archive (ERDDAP unreachable)", **lag_status(last), "store": str(store)}
+    sst = xr.concat([old.drop_vars("preliminary", errors="ignore"), *new], dim="time").astype("float32")
+    sst = sst.assign_coords(preliminary=("time", np.concatenate([prelim_old, np.array(flags, dtype=bool)])))
+    kept, trimmed = trim_incomplete_tail(pd.DatetimeIndex(sst.time.values), np.isfinite(sst.values).sum(axis=(1, 2)))
+    sst = sst.isel(time=slice(0, len(kept)))
+    attrs = {**old_attrs, "preliminary_through": str(pd.Timestamp(sst.time.values[-1]).date()), "synced_at": datetime.now(timezone.utc).isoformat(timespec="seconds")}
+    out = _publish(sst, store, attrs)
+    return {**out, "source": "NCEI archive (ERDDAP unreachable)", "appended_days": len(kept) - len(old.time), "trimmed_days": int(trimmed)} if out["updated"] else out
 
 
 def _pacific_mask(lat, lon, valid_fraction):

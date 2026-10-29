@@ -7,7 +7,6 @@ from sqlalchemy.orm import Session
 
 from app.db.session import SessionLocal
 from app.ingestion.base import BaseIngestionAdapter, IngestionParams
-from app.ingestion.copernicus_adapter import CopernicusAdapter
 from app.ingestion.noaa_adapter import NOAAAdapter
 from app.ingestion.obis_adapter import OBISAdapter
 from app.models.data_quality_report import DataQualityReport
@@ -23,7 +22,6 @@ logger = logging.getLogger("ocean_platform")
 
 ADAPTERS: dict[str, type[BaseIngestionAdapter]] = {
     "noaa": NOAAAdapter,
-    "copernicus": CopernicusAdapter,
     "obis": OBISAdapter,
 }
 

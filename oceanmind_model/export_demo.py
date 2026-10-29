@@ -6,6 +6,8 @@ files; it never imports torch. Everything here is model output or observed/proce
 from __future__ import annotations
 
 import json
+import os
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -16,6 +18,7 @@ from oceanmind_forecast.evaluate import load_climatology, load_split_truth
 from oceanmind_forecast.baselines import climatology_forecast
 from oceanmind_preprocess.datasets import ForecastDataset
 
+from .normalisation import ModelSpace
 from .train import load_checkpoint, resolve_device
 
 
@@ -28,9 +31,10 @@ def export_dashboard_snapshot(cfg, checkpoint="best", split="test", out_subdir="
     ds = ForecastDataset(root, split)
     i = len(ds) - 1                                              # most recent window of the split
     stats = json.loads((root / "stats.json").read_text())["channels"][ds.meta["target_channel"]]
+    space = ModelSpace(root, out_subdir, ds.channels, ds.meta["target_channel"])           # the checkpoint's own number scale (see normalisation.py)
     with torch.no_grad():
-        p = model(ds[i]["x"][None].to(dev))[0, :, 0].cpu().numpy()
-    pred = p * np.float32(stats["std"]) + np.float32(stats["mean"])        # (Hn,H,W) degC
+        p = model(torch.from_numpy(space.convert(ds[i]["x"].numpy(), ds.channels))[None].to(dev))[0, :, 0].cpu().numpy()
+    pred = space.to_degC(p)                                                 # (Hn,H,W) degC
 
     d = load_split_truth(root, split)
     ocean = d["ocean"]
@@ -62,10 +66,10 @@ def export_dashboard_snapshot(cfg, checkpoint="best", split="test", out_subdir="
     obs_clim = all_clim[last_idx]
 
     # LATEST forecast: the same model run on the final 7 processed days (no truth exists yet for its targets)
-    x_latest = torch.from_numpy(np.ascontiguousarray(ds.cube[-ds.lookback:][:, ds.ch]))[None].to(dev)
+    x_latest = torch.from_numpy(space.convert(np.ascontiguousarray(ds.cube[-ds.lookback:][:, ds.ch]), ds.channels))[None].to(dev)
     with torch.no_grad():
         p2 = model(x_latest)[0, :, 0].cpu().numpy()
-    fc_latest = p2 * np.float32(stats["std"]) + np.float32(stats["mean"])
+    fc_latest = space.to_degC(p2)
     obs_day = pd.Timestamp(dates[-1])
     latest_targets = obs_day + pd.to_timedelta(np.asarray(d["horizons"]), unit="D")
     latest_clim = climatology_forecast(clim_all, latest_targets.to_numpy()[None])[0]
@@ -75,8 +79,10 @@ def export_dashboard_snapshot(cfg, checkpoint="best", split="test", out_subdir="
 
     out = root / out_subdir / "dashboard"
     out.mkdir(parents=True, exist_ok=True)
+    generation = uuid.uuid4().hex                                  # the same id in snapshot.npz and snapshot.json: a reader can tell that the two files belong together
     np.savez_compressed(
-        out / "snapshot.npz",
+        out / "snapshot.tmp.npz",
+        generation=np.asarray(generation),
         lat=np.asarray(meta["lat"], dtype="float32"), lon=np.asarray(meta["lon"], dtype="float32"),
         ocean=ocean,
         forecast=land_nan(pred), truth=land_nan(np.where(d["y_valid"][i], d["y"][i], nan)),
@@ -88,7 +94,8 @@ def export_dashboard_snapshot(cfg, checkpoint="best", split="test", out_subdir="
     info = {
         "split": split,
         "model": "ConvLSTM (2 layers, 32 hidden channels)",
-        "checkpoint": {"which": checkpoint, "epoch": ck.get("epoch"), "val_loss": ck.get("val_loss")},
+        "model_cfg": ck.get("model_cfg"),
+        "checkpoint": {"which": checkpoint, "epoch": ck.get("epoch"), "val_loss": ck.get("val_loss"), "input_scale": space.source},
         "input_end_date": str(last_day.date()),
         "target_dates": [str(pd.Timestamp(t).date()) for t in tdates],
         "horizons": d["horizons"],
@@ -104,7 +111,11 @@ def export_dashboard_snapshot(cfg, checkpoint="best", split="test", out_subdir="
         "note": ("Forecast issued from the final window of the held-out test period; the observed truth for "
                  "every horizon is known, so it is shown alongside. This is an evaluation snapshot, not a live forecast."),
     }
-    (out / "snapshot.json").write_text(json.dumps(info, indent=2))
+    info["generation"] = generation
+    os.replace(out / "snapshot.tmp.npz", out / "snapshot.npz")       # each file is replaced whole; snapshot.json, written last, names the generation
+    tmp_json = out / "snapshot.tmp.json"
+    tmp_json.write_text(json.dumps(info, indent=2))
+    os.replace(tmp_json, out / "snapshot.json")
     from .heatwaves import compute_heatwaves
     dataset_id = cfg.get("dataset_id", "ne_pacific")          # config.pacific.yaml sets dataset_id: pacific (event ids and results are labelled with it)
     prefix = "mhw" if dataset_id == "ne_pacific" else f"mhw-{dataset_id}"

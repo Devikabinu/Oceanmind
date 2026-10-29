@@ -124,7 +124,7 @@ function NeDashboard() {
                 <Metric
                   label="Recent observations"
                   value={bio.data ? bio.data.records_last_90_days.toLocaleString() : "…"}
-                  note={bio.data?.latest_observation ? `Records in the 90 days up to the latest record (${bio.data.latest_observation.slice(0, 10)}).` : "No records loaded yet."}
+                  note={bio.data?.latest_observation ? `Records in the 90 days up to the latest record (${bio.data.latest_observation.slice(0, 10)}).` : "Records have not been loaded yet."}
                 />
                 <Metric
                   label="Conservation-sensitive species"

@@ -38,7 +38,7 @@ export default function Datasets() {
     <div>
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-slate-900">Datasets</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Datasets</h1>
           <p className="mt-1 text-sm text-slate-500">Every dataset produced by an ingestion run.</p>
         </div>
         <select
@@ -73,13 +73,13 @@ export default function Datasets() {
           <tbody className="divide-y divide-slate-100">
             {isLoading ? (
               <tr>
-                <td colSpan={6} className="px-4 py-6 text-center text-slate-400">
+                <td colSpan={6} className="px-4 py-6 text-center text-slate-500">
                   Loading...
                 </td>
               </tr>
             ) : datasets.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-6 text-center text-slate-400">
+                <td colSpan={6} className="px-4 py-6 text-center text-slate-500">
                   No datasets have been loaded yet. Datasets are created by ingestion jobs (Ingestion tab) and by the sync/publish jobs.
                 </td>
               </tr>

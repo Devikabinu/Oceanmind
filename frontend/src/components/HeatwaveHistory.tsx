@@ -166,7 +166,7 @@ export default function HeatwaveHistory({ dataset, region, onEvent }: { dataset:
                       <div>
                         <h4 className="text-sm font-semibold text-slate-900">Species with records in this area</h4>
                         {d.species_in_area.length === 0 ? (
-                          <p className="text-sm text-slate-600">No records were available in this dataset in the cells this event covered on {dayShown}. That is insufficient biodiversity coverage, not evidence that no animals were present.</p>
+                          <p className="text-sm text-slate-600">Biodiversity records are sparse in the cells this event covered on {dayShown}: a sampling gap, not evidence that no animals were present.</p>
                         ) : (
                           <ul className="mt-1 divide-y divide-slate-100 text-sm">
                             {d.species_in_area.slice(0, 8).map((s) => (

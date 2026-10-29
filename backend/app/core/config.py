@@ -29,11 +29,14 @@ class Settings(BaseSettings):
         "https://psl.noaa.gov/thredds/dodsC/Datasets/noaa.oisst.v2.highres"
     )
 
-    COPERNICUS_MARINE_USERNAME: str = ""
-    COPERNICUS_MARINE_PASSWORD: str = ""
-    COPERNICUS_MARINE_DATASET_ID: str = "cmems_obs-sst_glo_phy_nrt_l4_P1D-m"
-
     OBIS_API_BASE_URL: str = "https://api.obis.org/v3"
+
+    # Optional AI wording of the physical interpretation. Off by default: nothing is sent anywhere unless these are set in the backend .env. The key stays on the backend.
+    AI_PROVIDER: str = "none"          # none | anthropic | openai_compatible
+    AI_API_KEY: str = ""
+    AI_MODEL: str = ""
+    AI_BASE_URL: str = ""              # required for openai_compatible; optional for anthropic (proxy or compatible endpoint)
+    AI_TIMEOUT_S: float = 25.0
 
 
 @lru_cache

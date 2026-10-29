@@ -110,7 +110,7 @@ def test_ocean_regions_distinguish_covered_basin(client, outputs):
 
 def test_ocean_coverage_lists_sources_without_claiming_global_data(client, outputs):
     items = {i["id"]: i for i in client.get("/api/ocean/coverage", headers=auth_headers(client)).json()["items"]}
-    assert set(items) == {"noaa", "copernicus", "obis", "convlstm", "oni", "pdo"}
+    assert set(items) == {"noaa", "obis", "convlstm", "oni", "pdo"}
     assert "study region" in items["noaa"]["loaded_in_project"].lower()
     assert "No records loaded" in items["obis"]["loaded_in_project"]
     assert "study region" in items["convlstm"]["coverage_source"].lower()

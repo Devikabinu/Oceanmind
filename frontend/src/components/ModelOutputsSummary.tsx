@@ -68,7 +68,7 @@ export default function ModelOutputsSummary() {
   return (
     <section className="mt-10">
       <h2 className="text-lg font-semibold text-slate-900">Forecasts, Anomalies, Risk &amp; Alerts</h2>
-      <p className="mt-1 text-sm text-slate-500">Summary of the model outputs (currently placeholder data).</p>
+      <p className="mt-1 text-sm text-slate-500">Summary of the stored model outputs.</p>
       {error && <div className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
       <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div>
@@ -96,11 +96,11 @@ export default function ModelOutputsSummary() {
                   <div className={`text-lg font-semibold ${RISK_TEXT[level]}`}>
                     {summary ? summary.riskCounts[level] : "..."}
                   </div>
-                  <div className="text-[10px] text-slate-400">{level}</div>
+                  <div className="text-[10px] text-slate-500">{level}</div>
                 </div>
               ))}
             </div>
-            <div className="mt-1 text-xs text-slate-400">Latest {summary?.riskSampleSize ?? SAMPLE_SIZE} scores</div>
+            <div className="mt-1 text-xs text-slate-500">Latest {summary?.riskSampleSize ?? SAMPLE_SIZE} scores</div>
           </div>
           <Link to="/risk" className="mt-1 inline-block text-xs font-medium text-slate-600 underline">
             View risk &rarr;

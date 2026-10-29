@@ -15,6 +15,9 @@ interface ActiveSelection {
   setDataset: (d: string) => void;
   setRegion: (r: string) => void;
   setDate: (d: string | null) => void;
+  /** The place picked on the Ocean Map (latitude, longitude in -180..180), shared with the dashboard's historical SST graph; null = the whole region. */
+  point: { lat: number; lon: number } | null;
+  setPoint: (p: { lat: number; lon: number } | null) => void;
   /** Query string that carries this selection to another page (and optional extras). */
   toQuery: (extra?: Record<string, string | number | undefined>) => string;
 }
@@ -27,6 +30,7 @@ export function ActiveSelectionProvider({ children }: { children: ReactNode }) {
   const [dataset, setDatasetState] = useState(DEFAULT_DATASET);
   const [region, setRegion] = useState(DEFAULT_REGION);
   const [date, setDate] = useState<string | null>(null);
+  const [point, setPoint] = useState<{ lat: number; lon: number } | null>(null);
   const { search } = useLocation();
 
   // apply selection carried by a link
@@ -41,24 +45,32 @@ export function ActiveSelectionProvider({ children }: { children: ReactNode }) {
     if (r) setRegion(r);
     const dt = p.get("date");
     if (dt) setDate(dt);
+    const la = p.get("lat");
+    const lo = p.get("lon");
+    if (la !== null && lo !== null && la !== "" && lo !== "" && Number.isFinite(Number(la)) && Number.isFinite(Number(lo))) setPoint({ lat: Number(la), lon: Number(lo) });
   }, [search]);
 
   const setDataset = useCallback((d: string) => {
     setDatasetState(d);
     setDate(null); // every dataset has its own date range
+    setPoint(null);
   }, []);
 
   const toQuery = useCallback(
     (extra: Record<string, string | number | undefined> = {}) => {
       const q = new URLSearchParams({ dataset, region });
       if (date) q.set("date", date);
+      if (point) {
+        q.set("lat", String(Math.round(point.lat * 1000) / 1000));
+        q.set("lon", String(Math.round(point.lon * 1000) / 1000));
+      }
       for (const [k, v] of Object.entries(extra)) if (v !== undefined) q.set(k, String(v));
       return `?${q.toString()}`;
     },
-    [dataset, region, date],
+    [dataset, region, date, point],
   );
 
-  const value = useMemo(() => ({ dataset, region, date, setDataset, setRegion, setDate, toQuery }), [dataset, region, date, setDataset, toQuery]);
+  const value = useMemo(() => ({ dataset, region, date, point, setPoint, setDataset, setRegion, setDate, toQuery }), [dataset, region, date, point, setDataset, toQuery]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 

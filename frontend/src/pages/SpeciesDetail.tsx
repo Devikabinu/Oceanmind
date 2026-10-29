@@ -249,7 +249,7 @@ export default function SpeciesDetail() {
                   <RelatedLinks to={["map", "heatwaves", "risk"]} />
                 </div>
               ) : (
-                <EmptyState title="Insufficient evidence for a risk indicator">
+                <EmptyState title="Limited records for a risk indicator">
                   <p>{r?.message ?? "A risk indicator needs recent observations inside the study region."}</p>
                 </EmptyState>
               )}

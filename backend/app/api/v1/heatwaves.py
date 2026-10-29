@@ -77,7 +77,7 @@ def heatwave_history_event(event_id: str, dataset: str | None = None, date: str 
     result["species_in_area"] = species
     result["biodiversity_evidence"] = "observed" if species else "insufficient_coverage"
     result["species_note"] = (f"Species with stored OBIS records in the cells this event covered on {fp['date']} (last 2 years). Potential exposure only; records are not ranges."
-                              + ("" if species else " No stored records fall in those cells: that is insufficient biodiversity coverage, not evidence that no animals were present."))
+                              + ("" if species else " No stored records fall in those cells: that is limited biodiversity coverage, not evidence that no animals were present."))
     return result
 
 
@@ -104,7 +104,7 @@ def get_heatwave(event_id: str, dataset: str | None = None, db: Session = Depend
     result["species_in_area"] = sorted(species.values(), key=lambda s: -s["n_records"])[:20]
     result["biodiversity_evidence"] = "observed" if species else "insufficient_coverage"
     result["species_note"] = (f"Species with stored OBIS records in {area} (last 2 years). Potential exposure only."
-                              + ("" if species else f" No stored records fall in {area}: that is insufficient biodiversity coverage, not evidence that no animals are present."))
+                              + ("" if species else f" No stored records fall in {area}: that is limited biodiversity coverage, not evidence that no animals are present."))
     from app.services import explain_service
     result["narrative"] = explain_service.explain_event(result["event"], svc.data(dataset).info, result["species_in_area"], result["biodiversity_evidence"])
     return result

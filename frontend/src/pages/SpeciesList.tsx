@@ -162,7 +162,7 @@ export default function SpeciesList() {
                     <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-600">
                       <ConservationBadge category={s.iucn_category} label={s.iucn_label} source={s.iucn_source} />
                       <span>
-                        {s.n_observations > 0 ? `${s.n_observations.toLocaleString()} stored records` : "No stored records yet"}
+                        {s.n_observations > 0 ? `${s.n_observations.toLocaleString()} stored records` : "Not yet sampled in the stored data"}
                         {s.last_observation ? ` · latest ${s.last_observation.slice(0, 10)}` : ""}
                       </span>
                     </div>

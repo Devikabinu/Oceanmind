@@ -26,11 +26,14 @@ def _dir(dataset: str) -> Path:
 
 
 @lru_cache(maxsize=4)
-def _read(path: str, stamp: float):
+def _read(path: str, stamp: tuple):
     d = Path(path)
     with np.load(d / "dashboard" / "snapshot.npz") as z:
         snap = {k: z[k] for k in z.files}
     info = json.loads((d / "dashboard" / "snapshot.json").read_text())
+    gen_npz = str(snap["generation"]) if "generation" in snap else None
+    if info.get("generation") and gen_npz != info["generation"]:               # files written before generations existed carry none; otherwise the two must match
+        raise OutputsUnavailable("The forecast files are being updated; try again in a moment.")
     metrics = json.loads((d / "model_metrics.json").read_text()) if (d / "model_metrics.json").exists() else None
     origin = json.loads((d / "checkpoint_origin.json").read_text()) if (d / "checkpoint_origin.json").exists() else None
     return snap, info, metrics, origin
@@ -42,7 +45,11 @@ def load(dataset: str):
     if not f.exists():
         raise OutputsUnavailable(f"No forecast exists for dataset {dataset!r}: run `python -m oceanmind_model evaluate` and `export-dashboard` with that dataset's config "
                                  "(it needs a checkpoint in <processed dir>/model/best_model.pt)")
-    snap, info, metrics, origin = _read(str(d), f.stat().st_mtime)
+    try:
+        stamp = tuple(g.stat().st_mtime_ns if g.exists() else 0 for g in (f, d / "dashboard" / "snapshot.json", d / "model_metrics.json", d / "checkpoint_origin.json"))
+    except OSError as exc:
+        raise OutputsUnavailable(f"The forecast files are being updated: {exc}") from exc
+    snap, info, metrics, origin = _read(str(d), stamp)
     return snap, info, metrics, origin
 
 

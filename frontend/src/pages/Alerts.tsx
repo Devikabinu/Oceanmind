@@ -18,7 +18,7 @@ import { errorMessage } from "../utils/format";
 import { DATE_RANGE_FIELDS, toQueryParams } from "../utils/filters";
 
 const PAGE_SIZE = 12;
-const toOptions = (values: string[]) => values.map((v) => ({ value: v, label: v }));
+const toOptions = (values: string[]) => values.map((v) => ({ value: v, label: v === "MEDIUM" ? "MODERATE" : v }));
 const SEVERITY_RANK: Record<string, number> = { CRITICAL: 3, HIGH: 2, MEDIUM: 1, LOW: 0 };
 
 const FIELDS: FilterField[] = [

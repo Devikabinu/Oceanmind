@@ -28,7 +28,7 @@ NOAA OISST   ---------> oceanmind_preprocess  -> processed/cubes
                         oceanmind_model export-dashboard ------> processed/model/dashboard/*   /api/monitor, /heatwaves,
                            (latest forecast, heatwaves,                                        /ecological-risk, /ocean
                             2-year per-cell history)
-NOAA / Copernicus / OBIS  backend ingestion adapters  ---------> datasets, ocean_observations,  /api/ingestion, /datasets, ...   Dashboard, Map,
+NOAA / OBIS  backend ingestion adapters  ---------> datasets, ocean_observations,  /api/ingestion, /datasets, ...   Dashboard, Map,
 OBIS + WoRMS + GBIF       python -m app.jobs sync-biodiversity -> species, biodiversity_obs.    /api/species                    Forecast, Anomalies,
 processed export          python -m app.jobs publish-outputs --> sst_forecasts, anomaly_det.,   /api/forecast, /anomaly,           Heatwaves, Species,
                                                                   ecological_risk_scores,       /risk, /alerts                  Ecological Risk,
@@ -74,7 +74,7 @@ Register a user in the app (or via `POST /api/auth/register`); roles ADMIN/RESEA
 | `DATABASE_URL` | SQLAlchemy URL of the main database |
 | `FRONTEND_ORIGIN` | CORS origin (default `http://localhost:5173`) |
 | `PROCESSED_DIR` | Where the ML pipeline wrote `processed/` (default `<repo>/processed`) |
-| `OBIS_API_BASE_URL`, `NOAA_OISST_BASE_URL`, `COPERNICUS_*` | Source endpoints / credentials (see `.env.example`) |
+| `OBIS_API_BASE_URL`, `NOAA_OISST_BASE_URL`  | Source endpoints / credentials (see `.env.example`) |
 | `VITE_API_BASE_URL` | Frontend API base (default `http://localhost:8000/api`) |
 
 ## 4. Data sources and coverage
@@ -86,7 +86,6 @@ Register a user in the app (or via `POST /api/auth/register`); roles ADMIN/RESEA
 | OBIS | Species occurrence records | Global, uneven effort | A time-spread selection of records per watch-list species across the Pacific (`sync-biodiversity --region pacific`) | On demand |
 | WoRMS / GBIF | Taxonomy, English common names | n/a | Per catalogued species | On demand |
 | GBIF species API / OBIS red-list checklist | IUCN Red List category (CR/EN/VU/NT/LC/DD/NE) | Species with an IUCN assessment | Per catalogued species | On demand |
-| Copernicus Marine (GMPE SST) | Secondary SST | Global | Adapter only; needs free credentials | n/a |
 | Project ConvLSTM | 7-day SST forecast (model output) | Pacific Ocean | Issued from the last processed day; weights trained on the NE Pacific | With every refresh |
 
 Everything shown on the Ocean Map comes from these. Where a source has nothing for a place or day the interface says "Data unavailable" or "Insufficient evidence"; it never
@@ -110,6 +109,26 @@ shows zero for missing data.
 
 Freshness: every dataset reports its observation date, the retrieval time of its source and how many days old the newest observation is (current / delayed / stale); the
 interface shows these on Ocean Data and never presents an older date as today.
+
+#### Automatic daily refresh and versioned publication
+`scripts/daily_refresh.py` is what the scheduler runs. It asks NOAA for the newest day (never a fixed date; ERDDAP lists, and the NCEI daily files cover days the aggregation lacks), downloads only
+what is missing, validates it, and rebuilds only when the processed dataset is older than the newest valid observation or its products disagree. Retries and timeouts apply to every request; a day
+that is not published yet (HTTP 404) is reported missing, never filled. An unreachable source, a malformed or partial download, or an older record than the stored one leaves the previous valid store
+in place. Running it again with nothing new changes nothing (the stored record is only replaced when it differs).
+
+A rebuild never writes into the dataset being served. `refresh_pacific.py --only build` builds the cubes, climatology, anomalies, the 7-day forecast issued from the newest observation (valid dates:
+the day after it, for seven days) and the marine heatwaves in `processed_pacific.staging/`, checks that every product ends on the same day, and swaps the directory in one step
+(`oceanmind_environment/publish.py`; the previous generation is kept until the swap succeeds, an interrupted swap is repaired at the next start). If any step fails, the live dataset is untouched and the
+status says so. The forecast files carry a generation id so that the API never combines `snapshot.npz` and `snapshot.json` from different refreshes, and the forecast, explanation and SST-history
+caches follow the files they were read from.
+
+`data/refresh_status.json` records every attempt: outcome (updated / unchanged / source_unavailable / failed), the latest source observation, the latest processed observation, the last successful
+refresh and the forecast dates. The interface shows them under the data note ("Latest source observation", "Latest observation processed", "Last successful refresh", "Data state": current,
+delayed or refresh failed). A lock file holding the process id stops two runs at once; a lock left by a killed run is ignored.
+
+Scheduling (Windows): `powershell -ExecutionPolicy Bypass -File scripts\install_daily_task.ps1` registers the task "OceanMind daily SST refresh" (07:00 daily, repeated every 6 hours for 18 hours,
+run when next available if the computer was off, one instance at a time); `-Remove` unregisters it. Log: `logs/daily_refresh.log`. On a server use cron or a systemd timer to run
+`python scripts/daily_refresh.py` the same way.
 
 ## 5. Methods
 
@@ -150,6 +169,23 @@ Levels: < 0.25 LOW, < 0.5 MEDIUM, < 0.75 HIGH, else CRITICAL. If no species data
 remaining weights renormalised (the UI says so). The weights are a project choice, not fitted to outcomes; no confidence interval is
 shown because none can be defended.
 
+**Reading a score (location report, "Why this risk?").** Per factor the report shows the measured quantity (°C, days, species), the 0-1 factor, the nominal and
+effective weight, and the contribution; the score is `sum(weight x factor) / sum(weights of the factors that are present)`, so the contributions add up to the score.
+A factor has one of four statuses: *contributing*; *below threshold* (evidence present, factor < 0.33; in the score at a low value, never "insufficient");
+*incomplete* (e.g. a forecast for fewer than 7 days; used as far as it goes); *unavailable* (the input does not exist for this cell or date; the report names the missing
+input, the factor is left out and never counted as 0 or 1). A factor of 1.00 means the measured value reached its saturation point (3 °C, 14 days, 3 species); the raw value
+is still shown and the factor is labelled "capped". A forecast or heatwave result is used only when it was computed for the selected observation day.
+
+**Species counts** always name what is counted: "Species observations within about 5° of this location (last 2 years): N; distinct species: M" (stored OBIS observations
+in the window). The catalogue-wide number of species with stored records is a different quantity and is labelled as such. No observations in the area/period gives
+"Insufficient evidence", never 0.
+
+**Explain this forecast** (`GET /api/environment/forecast-explain`, `/forecast-model`, `/data-dates`). Observed inputs (the 7-day window, climatology, anomaly, trend),
+the model prediction for +1..+7 days with typical test error, and a sensitivity analysis run through the trained ConvLSTM (`python -m oceanmind_model explain`):
+the anomaly is replaced by normal conditions on one input day / locally / everywhere / in 8° blocks and the change of the forecast is measured. This is sensitivity, not
+causation; currents, winds, ENSO or upwelling are not inputs of the model and are never named as causes. The Pacific dataset is converted to the scale the NE-Pacific weights
+were trained with (`oceanmind_model/normalisation.py`) before the model runs.
+
 **Species exposure** applies the same factors to the places where a species was recorded in the last 2 years (weighted by record
 count); the overlap factor becomes the share of those positions currently >= 1 degC from normal. Wording is always "potential
 exposure" / "monitoring priority", never "harm".
@@ -168,6 +204,62 @@ classification, recommendation, evidence, species) and a stable de-duplication k
 Each alert also stores `evidence_summary` (label/value pairs such as maximum anomaly, duration, affected area, cumulative intensity, number of species with
 records, number of conservation-sensitive species), shown under "Why this alert?". Re-running the job refreshes the evidence of an existing alert in place
 (same key) and never changes its workflow status. Status workflow (NEW -> ACKNOWLEDGED -> RESOLVED, forward only, ADMIN/RESEARCHER only) is unchanged.
+
+### 5.5 External biodiversity and ocean context (location report)
+The location report adds two kinds of context that are **not** inputs of the ConvLSTM and **not** part of the risk score:
+
+* **Biodiversity from the OBIS API** (`https://api.obis.org/v3`; `app/services/obis_service.py`, `obis_live.py`, `biodiversity_view.py`). For a clicked place the service tries boxes of ±0.5° (local), ±2° and ±5°
+  (nearby), ±10° and ±20° (regional) and ±40° (regional Pacific) and uses the smallest one with at least 25 records, among the last two years first; older records are used, and labelled historical, only when no
+  box has recent ones. It returns record and species counts, taxonomic groups, species with the IUCN Red List category that OBIS carries, distance and date of the nearest and latest record. The recorded places are
+  overlaid on the current marine-heatwave footprint and on the area where the 7-day forecast anomaly is at least 1 °C in either direction: *potential exposure*, never damage. Results are cached on disk
+  (`data/cache/biodiversity`, 7 days); a click on an uncached place starts a background fetch, waits a few seconds, and otherwise shows the project's stored OBIS records until the fetch finishes. Requests are
+  rate-limited, time-limited and retried; when OBIS cannot be reached the previous cached answer (marked stale) or the stored records are used.
+* **Chlorophyll-a and surface currents from NOAA ERDDAP** (`app/services/ocean_context.py`): NOAA S-NPP VIIRS chlorophyll-a (`noaa_snpp_chla_daily` for the last 30 days and `noaa_snpp_chla_monthly` for the same
+  month of earlier years, served by NOAA PIFSC) and geostrophic currents from altimetry (`noaacwBLENDEDNRTcurrentsDaily`, NOAA CoastWatch). Each value carries its dataset, observation date and resolution;
+  ocean-colour data lag the SST by about ten days and have gaps under cloud. Caches live in `data/cache/ocean_context` (12 hours).
+
+The risk score still uses the project's stored OBIS selection (distinct species per 2×2° block, saturating at 3 species) and the forecast still uses only its documented inputs. `scripts/warm_external_cache.py` fills the caches
+ahead of time for chosen places or a grid.
+
+### 5.6 Physical explanation of an SST anomaly (Explainable AI, part B)
+The Explainable AI panel has two parts. **A. Model explanation** is what the ConvLSTM predicts and what the trained network responds to (a sensitivity analysis; never a physical cause). **B. Physical
+explanation** (`app/services/physical_drivers.py`, `physical_analysis.py`, `physical_report.py`; `GET /api/environment/physical-drivers`) compares the observed anomaly with measured environmental indicators and
+says which mechanisms they are consistent with, which they argue against and which cannot be assessed. Every source below was checked for variables, dates and coverage before use, and is fetched and cached on its own
+(12 h for current data, 90 days for baselines; background fetch; a failing source leaves the others in place and the SST map, dashboard and forecast untouched).
+
+| Indicator | Source and dataset | Coverage used | Notes |
+|---|---|---|---|
+| Wind, wind stress | RSS CCMP v2.1 near-real-time winds, NOAA PIFSC ERDDAP `ccmp-daily-v2-1-NRT` | 6-hourly, 0.25°, 2015 to 2026-10-27; baseline = the same 7 days of 2016-2025 | stress derived with the Large and Pond bulk formula; Ekman transport (tau/(rho f)) is undefined within 3° of the equator |
+| Sea level anomaly | NOAA CoastWatch blended altimetry `noaacwBLENDEDsshDaily` (SLA, m, relative to the DTU15 long-term mean sea surface; the seasonal cycle is **not** removed) | daily, 0.25°, 2015-01-15 to 2026-10-27; compared with the 7 same calendar days of 2016-2025 | proxy for upper-ocean heat content; only the departure from the same days of other years is interpreted; eddies and non-thermal effects also change it |
+| Surface currents | NOAA CoastWatch `noaacwBLENDEDNRTcurrentsDaily` | daily, 0.25°, to 2026-10-26/27 | geostrophic only (no wind-driven part); advective tendency = −u·∇T with the OISST gradient; not interpreted within 3° of the equator |
+| ENSO | NOAA CPC `sstoi.indices` (Niño 3.4) and the Oceanic Niño Index | monthly | context only; "consistent" is used only in the central and eastern tropical Pacific (15°S-15°N, 160°E-80°W) |
+| Surface radiation and humidity | NASA POWER daily point API (`ALLSKY_SFC_SW_DWN`, `ALLSKY_SFC_LW_DWN`, `T2M`, `QV2M`, `PS`) | daily, last valid day about 8 days behind; baseline = the same 7 days of 2016-2025 | with the CCMP wind and the OISST of the same seven days it gives a **bulk estimate** of the surface heat-flux anomaly (shortwave, downward and upward longwave, latent and sensible heat; Ce = Ch = 1.2e-3, albedo 0.06), it is an estimate that has not been validated against measured fluxes in this project (no error bound is claimed), not a measured flux |
+| Normal heat flux | NCEP/NCAR Reanalysis 1 (NOAA PSL THREDDS), 1991-2020 daily **climatology** | normal net flux for the forecast week | the 2026 reanalysis files end in March 2026 and are not used |
+
+Not integrated because they could not be verified as current: the CoastWatch blended NRT winds (end 2023), the NCEP reanalyses (end early 2026), the `upwell` ERDDAP server (unreachable at times). Coastal upwelling is judged
+from the Ekman transport normal to a coastline estimated from the 0.25° land mask; open-ocean upwelling would need the stress curl and is reported as not assessable.
+
+Verdicts are `consistent`, `not consistent`, `inconclusive` or `not assessable`, from fixed thresholds listed in the panel ("How each verdict is decided"). Advection is compared with the anomaly (a current that warms a warm anomaly is consistent; the sign of the observed trend is reported separately) and includes the normal advection already part of the normal SST. The equatorial upwelling rule applies only where the normal stress is easterly. Each source table row gives the day actually used (not only the source's last day). Evidence strength counts independent data families (wind and
+upwelling share one wind field). No verdict is "cause established"; the ConvLSTM was not retrained and does not use any of these variables.
+
+#### Interpretation layer (`physical_interpretation.py`, `ai_providers.py`)
+The first view of part B is a written interpretation: why the area is warmer or cooler than normal, the (at most three) leading mechanisms with their measurements, what the data show, what may happen next
+(from the actual SST forecast; the driver values are observations, never forecasts), possible marine implications (measured facts kept apart from general scientific context) and a qualitative confidence level with
+its criteria. Everything else (dates, the full evidence table, charts, per-mechanism verdicts, sources, method) sits under "Evidence and limitations".
+
+1. **Evidence package.** `build_package` collects only values already retrieved (SST, anomaly and trends, seasonal versus anomalous change over the last days, heatwave state, forecast days, winds, radiation/heat flux,
+   sea level, currents, ENSO, source dates and lags), each with an id (E1, E2, ...). Nothing is estimated or filled in.
+2. **Deterministic narrator.** `narrate` writes the interpretation from the package alone, with no external service. It is always computed and is what is shown when no AI provider is configured or the provider fails.
+3. **Optional AI provider.** Off by default (`AI_PROVIDER=none`). Configure in the backend `.env` only: `AI_PROVIDER=anthropic` (with `AI_API_KEY`, `AI_MODEL`, optional `AI_BASE_URL`) or `AI_PROVIDER=openai_compatible`
+   (with `AI_MODEL`, `AI_BASE_URL`, optional `AI_API_KEY`, e.g. a local server); `AI_TIMEOUT_S` bounds each call. The key never reaches the browser. The provider receives only the evidence package (no user data); the
+   prompt says its content is data, not instructions. It is called in a background thread, so the report never waits for it; the result is cached on disk under `data/cache/physical_ai` by a hash of provider, prompt
+   version and package, and a failure is not retried for ten minutes.
+4. **Validation.** Any text (AI or narrator) is checked against the package before it is shown: the required shape, at most three mechanisms, evidence ids that exist, every number present in the package,
+   no causal verbs or "will continue" claims about drivers, no damage reported, a mechanism described as supported by local measurements only when its verdict is "consistent" with its own evidence ids, general
+   context citing no measurement, and the confidence level identical to the deterministic one. Output that fails is discarded and the narrator's text is shown with a note. Generated text never changes a measured value,
+   the forecast or the risk score.
+
+This repository has been verified with the deterministic narrator and with test doubles for the provider; no commercial provider was configured or called in development, so none is claimed as integrated.
 
 ## 6. Observation vs model output vs derived metric vs interpretation
 
@@ -222,7 +314,6 @@ Check with `alembic upgrade head` / `alembic downgrade -1`. No existing rows are
 * The heatwave definition is simplified; the risk weights are a project choice.
 * Threat descriptions, habitat classes, range polygons and protected areas are **not** included: no authoritative dataset is loaded
   (the IUCN Red List API needs a key; protected-area layers were not added without a vetted dataset).
-* Copernicus ingestion is available but not loaded (needs credentials).
 
 ## 10. Testing
 

@@ -109,10 +109,10 @@ def test_risk_explanation_answers_the_questions_from_returned_values(client, h, 
     ids = [s["id"] for s in ex["sections"]]
     assert ids == ["what", "why", "factors", "evidence", "missing", "meaning"]
     text = " ".join(s["text"] + " ".join(s["bullets"]) for s in ex["sections"])
-    assert f"{cell['score']:.2f}" in text and cell["level"] in text and "rather than direct observations" in text
+    assert f"{cell['score']:.2f}" in text and ("MODERATE" if cell["level"] == "MEDIUM" else cell["level"]) in text and "MEDIUM" not in text and "rather than direct observations" in text
     assert f"{cell['evidence']['anomaly_c']:+.1f}" in text                                       # the anomaly quoted is the returned one
     assert "9 days" in text                                                                      # heatwave run length from the heatwave results
-    assert "insufficient biodiversity coverage" in text and "not counted as zero" in text or "left out" in text
+    assert "limited biodiversity coverage" in text and "not counted as zero" in text or "left out" in text
     assert [c["factor"] for c in ex["contributions"]][0] in {"anomaly", "persistence", "forecast"}
     assert sum(c["score_points"] for c in ex["contributions"]) == pytest.approx(cell["score"], abs=0.01)   # contributions add up to the score
     assert "grounded_in" in ex and ex["grounded_in"]["level"] == cell["level"]
@@ -149,7 +149,7 @@ def test_heatwave_narrative(client, h, pac):
     n = d["narrative"]
     assert [s["id"] for s in n["sections"]] == ["what_is", "abnormality", "persistence", "extent", "cumulative", "biodiversity", "missing", "why"]
     text = " ".join(s["text"] + " ".join(s["bullets"]) for s in n["sections"])
-    assert "9 days" in text and "+2.1" in text and "insufficient biodiversity coverage" in text and "rather than direct observations" in text
+    assert "9 days" in text and "+2.1" in text and "limited biodiversity coverage" in text and "rather than direct observations" in text
     assert "does not measure biological impact" in text and n["grounded_in"]["duration_days"] == 9
 
 
@@ -247,7 +247,7 @@ def test_report_inside_a_heatwave_has_every_section_for_the_same_cell(client, h,
     assert risk["level"] and risk["score"] is not None and risk["evidence_completeness"] > 0
     by = {d["factor"]: d for d in risk["drivers"]}
     assert set(by) == {"anomaly", "persistence", "forecast", "overlap"}
-    assert by["persistence"]["status"] == "used in the score" and by["persistence"]["contribution"] > 0 and "9 days" in by["persistence"]["explanation"]
+    assert by["persistence"]["status"] in ("contributing", "below_threshold") and by["persistence"]["contribution"] > 0 and "9 days" in by["persistence"]["explanation"]
     assert by["overlap"]["available"] is True and "1 species" in by["overlap"]["explanation"]
     assert [s["id"] for s in risk["explanation"]["sections"]][0] == "what"
     sp = r["species"]["items"][0]
@@ -260,7 +260,7 @@ def test_report_inside_a_heatwave_has_every_section_for_the_same_cell(client, h,
 def test_report_outside_a_heatwave_says_so_and_unknown_species_status_is_not_confirmed(client, h, pac, db_session):
     r = report(client, h, 30, 150).json()
     assert r["heatwave"]["inside"] is False and r["heatwave"]["message"] == "No active marine heatwave at this location."
-    assert r["species"]["items"] == [] and r["species"]["evidence"] == "insufficient_coverage" and "not evidence that no species" in r["species"]["summary"] and "No records were available in this dataset" in r["species"]["summary"]
+    assert r["species"]["items"] == [] and r["species"]["evidence"] == "insufficient_coverage" and "not evidence that no species" in r["species"]["summary"] and "No stored records" in r["species"]["summary"]
     ds = make_dataset(db_session)
     from datetime import datetime, timezone
     o = make_biodiversity_observation(db_session, ds, ts=datetime.now(timezone.utc), lat=30, lon=150)
@@ -273,7 +273,7 @@ def test_report_outside_a_heatwave_says_so_and_unknown_species_status_is_not_con
 def test_report_for_other_dates_and_no_data_places(client, h, pac):
     old = report(client, h, -10, 122, date="2020-01-05").json()
     assert old["date"] == "2020-01-05" and old["heatwave"]["inside"] is None and "latest date" in old["heatwave"]["message"]
-    assert old["risk"]["drivers"] and any(d["factor"] == "persistence" and d["status"] == "insufficient evidence" for d in old["risk"]["drivers"])
+    assert old["risk"]["drivers"] and any(d["factor"] == "persistence" and d["status"] == "unavailable" and d["missing_input"] for d in old["risk"]["drivers"])
     land = report(client, h, 50, 110).json()
     assert land["status"] == "land" and "conditions" not in land
     assert report(client, h, 70, 200).json()["status"] == "outside_dataset"
@@ -320,7 +320,7 @@ def _record(db, lat, lon, name, aphia, status):
 def test_anomaly_explanation_separates_observed_inferred_and_unconfirmed(client, h, pac):
     r = report(client, h, -10, 122).json()
     secs = {s["id"]: s for s in r["anomaly"]["explanation"]["sections"]}
-    assert list(secs) == ["what", "unusual", "persistence", "why", "consequences"]
+    assert list(secs) == ["what", "unusual", "persistence", "outlook", "why", "consequences"]
     assert "normal temperature for this place" in secs["what"]["text"] and "2012–2023" in secs["what"]["text"]
     why = secs["why"]["bullets"]
     assert any(b.startswith("Observed:") for b in why) and any(b.startswith("Inferred") for b in why) and any(b.startswith("Possible explanation") for b in why) and any(b.startswith("Not established by available data:") for b in why)
@@ -390,7 +390,7 @@ def test_report_degrades_gracefully_when_heatwave_forecast_or_risk_inputs_are_mi
     assert b["heatwave"]["available"] is False and b["heatwave"]["inside"] is None and "not been built" in b["heatwave"]["message"]
     assert b["forecast"]["available"] is False and b["forecast"]["message"]
     drivers = {d["factor"]: d for d in b["risk"]["drivers"]}
-    assert drivers["persistence"]["status"] == "insufficient evidence" and drivers["forecast"]["status"] == "insufficient evidence"
+    assert drivers["persistence"]["status"] == "unavailable" and drivers["forecast"]["status"] == "unavailable" and "forecast issued from this date" in drivers["forecast"]["missing_input"]
     assert b["risk"]["score"] is not None and b["risk"]["evidence_completeness"] < 1                       # scored on the remaining evidence, missing factors are not zero
 
 

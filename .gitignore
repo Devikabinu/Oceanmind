@@ -88,3 +88,5 @@ processed/*.zarr/
 cache/
 data/pacific_oisst/
 data/climate_indices/
+data/refresh_status.json
+data/*.lock

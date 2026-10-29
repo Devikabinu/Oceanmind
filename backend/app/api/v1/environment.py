@@ -145,6 +145,64 @@ def anomaly_analysis(dataset: str | None = None, date: str | None = Query(None, 
     return guard(aa.analysis, dataset, date, region, top)
 
 
+@router.get("/data-dates")
+def data_dates(dataset: str | None = None, date: str | None = Query(None, pattern=_DATE), db: Session = Depends(get_db)) -> dict:
+    """The day each product (SST, anomaly, marine heatwaves, forecast start and valid days, species records) refers to, and whether they all agree."""
+    from app.services import location_report
+    return guard(location_report.dataset_dates, db, dataset, date)
+
+
+@router.get("/forecast-model")
+def forecast_model(dataset: str = "pacific") -> dict:
+    """What the forecast model is: input window, channels, output, normalisation, training and test periods, baseline comparison, and a description of the ConvLSTM."""
+    from app.services import forecast_explain
+    from app.services.environment import OutputsUnavailable
+    try:
+        return guard(forecast_explain.model_info, dataset)
+    except OutputsUnavailable as exc:
+        raise HTTPException(503, detail={"code": "forecast_unavailable", "message": str(exc)})
+
+
+@router.get("/forecast-explain")
+def forecast_explain(lat: float = Query(..., ge=-90, le=90), lon: float = Query(..., ge=-360, le=360), dataset: str = "pacific") -> dict:
+    """Explain the latest forecast at one place: the model's actual inputs, its predictions for +1..+7 days, and a sensitivity analysis run through the trained ConvLSTM
+    (what the forecast responds to; not a physical cause)."""
+    from app.services import forecast_explain as fe
+    from app.services.environment import OutputsUnavailable
+    try:
+        return guard(fe.explain, dataset, lat, lon)
+    except OutputsUnavailable as exc:
+        raise HTTPException(503, detail={"code": "forecast_unavailable", "message": str(exc)})
+    except RuntimeError as exc:
+        raise HTTPException(503, detail={"code": "explanation_unavailable", "message": f"The sensitivity analysis could not be run: {exc}"})
+    except Exception as exc:  # noqa: BLE001 - subprocess timeouts and similar
+        if exc.__class__.__name__ == "TimeoutExpired":
+            raise HTTPException(503, detail={"code": "explanation_timeout", "message": "The sensitivity analysis took too long; try again."})
+        raise
+
+
+@router.get("/physical-drivers")
+def physical_drivers(lat: float = Query(..., ge=-90, le=90), lon: float = Query(..., ge=-360, le=360), dataset: str = "pacific") -> dict:
+    """The physical explanation of one place: measured winds, sea level, currents, ENSO indices and the heat-flux climatology matched to the SST anomaly and the ConvLSTM forecast, with
+    evidence for and against each plausible mechanism and the source, date and lag of every dataset. Fetched in the background and cached; never changes the forecast or the score."""
+    from app.services import physical_report
+    from app.services.environment import OutputsUnavailable
+    try:
+        return guard(physical_report.build_report, dataset, lat, lon)
+    except OutputsUnavailable as exc:
+        raise HTTPException(503, detail={"code": "forecast_unavailable", "message": str(exc)})
+
+
+@router.get("/sst-history")
+def sst_history(dataset: str | None = None, region: str = "pacific", lat: float | None = Query(None, ge=-90, le=90), lon: float | None = Query(None, ge=-360, le=360),
+                start_date: str | None = Query(None, pattern=r"^\d{4}-\d{2}-\d{2}$"), end_date: str | None = Query(None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
+                aggregation: Literal["daily", "monthly", "annual"] = "monthly") -> dict:
+    """Historical SST of a clicked location (lat and lon) or of a region over the whole processed record: series, annual means and anomalies, trend over the available record,
+    and the separate forecast when one exists. Days without data are left out, never zero."""
+    from app.services import sst_history as sh
+    return guard(sh.history, dataset, region, lat, lon, start_date, end_date, aggregation)
+
+
 @router.get("/report")
 def environment_report(lat: float = Query(..., ge=-90, le=90), lon: float = Query(..., ge=-360, le=360), dataset: str | None = None,
                        date: str | None = Query(None, pattern=_DATE), db: Session = Depends(get_db)) -> dict:

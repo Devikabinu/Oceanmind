@@ -34,6 +34,8 @@ def main() -> int:
     d = sub.add_parser("publish-dataset-alerts", help="raise alerts from a dataset's precomputed heatwave events and risk areas (e.g. pacific)")
     d.add_argument("--dataset", default="pacific")
     sub.add_parser("sync-climate-indices", help="download the Oceanic Nino Index (NOAA CPC) and the PDO index (NOAA NCEI) used as labelled context in anomaly explanations")
+    h = sub.add_parser("build-sst-history", help="precompute the daily regional SST means used by the Historical SST graph (also built on first request)")
+    h.add_argument("--dataset", default="pacific")
     sub.add_parser("all")
     args = ap.parse_args()
     logging.basicConfig(level=logging.WARNING)
@@ -56,6 +58,10 @@ def main() -> int:
         if args.cmd in ("publish-outputs", "all"):
             from app.jobs import publish_outputs
             print(publish_outputs.publish(db, uid, days=getattr(args, "days", 14)))
+        if args.cmd == "build-sst-history":
+            from app.services import environment_store as es, sst_history
+            d = sst_history.region_series(es.get_store(args.dataset))
+            print({"days": int(len(d["dates"])), "regions": int(len(d["regions"]))})
         if args.cmd == "sync-climate-indices":
             from app.services import climate_indices
             print(climate_indices.sync())

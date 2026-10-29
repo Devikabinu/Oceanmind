@@ -18,12 +18,12 @@ export default function FactorBars({ factors }: { factors: RiskFactor[] }) {
             <span className="text-slate-800">
               {LABEL[f.factor]} <span className="text-xs text-slate-500">(weight {(f.weight * 100).toFixed(0)}%)</span>
             </span>
-            <span className="font-medium text-slate-900">{f.available && f.level ? f.level : "No data"}</span>
+            <span className="font-medium text-slate-900">{f.available && f.level ? f.level : "Not used"}</span>
           </div>
           <div
             className="mt-1 h-2.5 w-full rounded bg-slate-100"
             role="img"
-            aria-label={`${LABEL[f.factor]}: ${f.available ? `${Math.round((f.value ?? 0) * 100)} percent` : "no data"}`}
+            aria-label={`${LABEL[f.factor]}: ${f.available ? `${Math.round((f.value ?? 0) * 100)} percent` : "not used"}`}
           >
             {f.available && f.value != null && (
               <div className={`h-2.5 rounded ${BAR[f.level ?? "LOW"]}`} style={{ width: `${Math.max(3, f.value * 100)}%` }} />

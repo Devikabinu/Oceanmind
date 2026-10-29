@@ -14,28 +14,30 @@ from oceanmind_forecast.evaluate import (evaluate_baselines, evaluate_prediction
                                          skill_vs_reference)
 from oceanmind_preprocess.datasets import ForecastDataset
 
+from .normalisation import ModelSpace
 from .train import load_checkpoint, resolve_device
 
 
 @torch.no_grad()
-def predict_degC(model, root, split, device, batch_size=4, num_workers=0):
+def predict_degC(model, root, split, device, batch_size=4, num_workers=0, out_subdir="model"):
     """(N, Hn, H, W) forecasts in degC for every accepted window of `split`, in window-index order."""
     root = Path(root)
     ds = ForecastDataset(root, split)
-    stats = json.loads((root / "stats.json").read_text())["channels"][ds.meta["target_channel"]]
+    space = ModelSpace(root, out_subdir, ds.channels, ds.meta["target_channel"])        # the checkpoint's own number scale (see normalisation.py)
     out = []
     model.eval()
     for b in DataLoader(ds, batch_size=batch_size, shuffle=False, num_workers=num_workers):
-        out.append(model(b["x"].to(device))[:, :, 0].cpu().numpy())
+        x = torch.from_numpy(space.convert(b["x"].numpy(), ds.channels))
+        out.append(model(x.to(device))[:, :, 0].cpu().numpy())
     p = np.concatenate(out).astype("float32")
-    return p * np.float32(stats["std"]) + np.float32(stats["mean"])
+    return space.to_degC(p)
 
 
 def evaluate_model(cfg, checkpoint="best", split="test", out_subdir="model", device=None):
     root = Path(cfg.paths.out_dir)
     dev = resolve_device(device or cfg.training.device)
     model, ck = load_checkpoint(root / out_subdir / f"{checkpoint}_model.pt", dev)
-    pred = predict_degC(model, root, split, dev, num_workers=cfg.training.num_workers)
+    pred = predict_degC(model, root, split, dev, num_workers=cfg.training.num_workers, out_subdir=out_subdir)
     d = load_split_truth(root, split)
     assert pred.shape == d["y"].shape, (pred.shape, d["y"].shape)
     valid = d["y_valid"] & d["x_last_valid"][:, None]            # identical to evaluate_baselines

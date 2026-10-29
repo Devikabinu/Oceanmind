@@ -1,7 +1,7 @@
 import { apiClient } from "./client";
 import type { IngestionJob, IngestionRequest, Paginated } from "../types";
 
-export type IngestionSource = "noaa" | "copernicus" | "obis";
+export type IngestionSource = "noaa" | "obis";
 
 export async function startIngestion(
   source: IngestionSource,

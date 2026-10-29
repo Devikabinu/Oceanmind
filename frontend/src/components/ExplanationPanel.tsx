@@ -2,11 +2,11 @@ import type { Explanation } from "../api/intelligence";
 import SourceTag from "./SourceTag";
 
 /** Plain-language explanation. The sentences come from the backend, which builds them only from the structured values returned with them. */
-export default function ExplanationPanel({ explanation, title = "Explanation", defaultOpenAll = true }: { explanation: { headline: string; sections: Explanation["sections"] }; title?: string; defaultOpenAll?: boolean }) {
+export default function ExplanationPanel({ explanation, title = "Explanation", defaultOpenAll = true, heading: Heading = "h3" }: { explanation: { headline: string; sections: Explanation["sections"] }; title?: string; defaultOpenAll?: boolean; heading?: "h2" | "h3" | "h4" }) {
   return (
     <section aria-label={title} className="rounded-lg border border-teal-200 bg-teal-50/60 p-3 text-sm">
       <div className="flex flex-wrap items-center gap-2">
-        <h4 className="font-semibold text-slate-900">{title}</h4>
+        <Heading className="font-semibold text-slate-900">{title}</Heading>
         <SourceTag kind="interpretation" />
       </div>
       <p className="mt-1 font-medium text-slate-900">{explanation.headline}</p>

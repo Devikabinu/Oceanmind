@@ -110,7 +110,7 @@ function NeAnomalies() {
             <option value="ALL">All categories</option>
             <option value="CRITICAL">Critical (≥ 3 °C)</option>
             <option value="HIGH">High (≥ 2 °C)</option>
-            <option value="MEDIUM">Medium (≥ 1 °C)</option>
+            <option value="MEDIUM">Moderate (≥ 1 °C)</option>
           </select>
         </label>
         <label className="flex flex-col gap-1 text-xs font-medium text-slate-600">

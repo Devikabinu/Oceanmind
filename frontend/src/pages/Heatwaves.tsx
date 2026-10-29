@@ -102,7 +102,7 @@ function Detail({ id, dataset, onFootprint }: { id: string; dataset: string; onF
           <div>
             <h4 className="text-sm font-semibold text-slate-900">Species with records in this area</h4>
             {d.data.species_in_area.length === 0 ? (
-              <p className="mt-1 text-sm text-slate-600">No stored OBIS records fall inside this area&apos;s bounding box (last 2 years). That does not mean no animals are present.</p>
+              <p className="mt-1 text-sm text-slate-600">Stored OBIS records are sparse in this area (last 2 years): a sampling gap, not evidence that no animals are present.</p>
             ) : (
               <ul className="mt-1 divide-y divide-slate-100 text-sm">
                 {d.data.species_in_area.map((s) => (

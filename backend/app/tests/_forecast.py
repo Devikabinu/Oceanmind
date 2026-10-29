@@ -6,7 +6,7 @@ import numpy as np
 from app.tests import _pacific as P
 
 
-def build(root, beats_persistence=False, issued=P.LATEST):
+def build(root, beats_persistence=False, issued=P.LATEST, slope=0.1):
     d = root / "model"
     (d / "dashboard").mkdir(parents=True, exist_ok=True)
     land = P.land_mask()
@@ -14,7 +14,7 @@ def build(root, beats_persistence=False, issued=P.LATEST):
     obs = np.where(land, np.nan, sst).astype("float32")
     clim = np.where(land, np.nan, sst - 0.5).astype("float32")
     n = 7
-    fc = np.stack([obs + 0.1 * (h + 1) for h in range(n)]).astype("float32")
+    fc = np.stack([obs + slope * (h + 1) for h in range(n)]).astype("float32")
     climn = np.stack([clim for _ in range(n)]).astype("float32")
     np.savez_compressed(d / "dashboard" / "snapshot.npz", lat=P.LAT.astype("float32"), lon=P.LON.astype("float32"), ocean=~land, latest_forecast=fc,
                         latest_climatology=climn, latest_obs=obs, latest_obs_climatology=clim)

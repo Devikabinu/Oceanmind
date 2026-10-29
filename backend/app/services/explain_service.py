@@ -5,12 +5,12 @@ reviewer can check each claim. Facts that are not in the evidence (species prese
 """
 from __future__ import annotations
 
-LEVEL_BANDS = "LOW below 0.25, MEDIUM below 0.5, HIGH below 0.75, CRITICAL from 0.75"
+LEVEL_BANDS = "LOW below 0.25, MODERATE below 0.5, HIGH below 0.75, CRITICAL from 0.75"
 FACTOR_LABEL = {"anomaly": "SST anomaly", "persistence": "heatwave persistence", "forecast": "forecast anomaly", "overlap": "species overlap"}
 BIO_TEXT = {
     "observed": "OBIS species records exist in this 2°×2° block.",
     "none_recorded": "No OBIS records were found in this block although records were gathered for this area.",
-    "insufficient_coverage": "No OBIS records exist in this block. That is insufficient biodiversity coverage, not evidence that no animals are present, so species overlap is left out of the score.",
+    "insufficient_coverage": "No OBIS records exist in this block. That is limited biodiversity coverage, not evidence that no animals are present, so species overlap is left out of the score.",
     "unavailable": "No biodiversity data are loaded, so species overlap is not part of the score.",
 }
 
@@ -68,19 +68,19 @@ def explain_risk_cell(cell: dict) -> dict:
     # 2. why this level
     contrib = contributions(cell.get("factors", []))
     top = contrib[0] if contrib else None
-    why = f"The combined risk score is {cell['score']:.2f}, which falls in the {cell['level']} band ({LEVEL_BANDS})."
+    why = f"The combined risk score is {cell['score']:.2f}, which falls in the {'MODERATE' if cell['level'] == 'MEDIUM' else cell['level']} band ({LEVEL_BANDS})."
     if top:
         why += f" The largest contribution comes from {top['label']} ({top['score_points']:.2f} of the score)."
     if len(contrib) >= 2 and cell["level"] in ("MEDIUM", "HIGH", "CRITICAL"):
         why += f" Risk is {'MODERATE' if cell['level'] == 'MEDIUM' else cell['level']} primarily because of {contrib[0]['label']} and {contrib[1]['label']}."
     gaps = [FACTOR_LABEL.get(f["factor"], f["factor"]) for f in cell.get("factors", []) if not f.get("available")]
     if gaps:
-        why += f" Evidence for {', '.join(gaps)} is insufficient, so {'it was' if len(gaps) == 1 else 'they were'} not treated as zero."
+        why += f" {', '.join(gaps)} {'is' if len(gaps) == 1 else 'are'} not available here, so {'it was' if len(gaps) == 1 else 'they were'} left out (never treated as zero) and the score uses the available indicators; biodiversity coverage affects confidence, not whether the environmental risk can be calculated."
     sections.append(_sec("why", "Why this risk level", why))
 
     # 3. contributing factors
     sections.append(_sec("factors", "Which factors contributed most", "Each available factor is scored 0–1; its share of the final score follows the project weights, rescaled over the factors that are available.",
-                         [f"{c['label']}: {c['value']:.2f} ({c['level']}), weight {c['weight_share'] * 100:.0f}% → {c['score_points']:.2f} of the score" for c in contrib]))
+                         [f"{c['label']}: {c['value']:.2f} ({'MODERATE' if c['level'] == 'MEDIUM' else c['level']}), weight {c['weight_share'] * 100:.0f}% → {c['score_points']:.2f} of the score" for c in contrib]))
 
     # 4. supporting evidence
     bullets = []
@@ -113,7 +113,7 @@ def explain_risk_cell(cell: dict) -> dict:
         take += (" Because some factors are missing, a LOW result here only means low risk on the evidence that exists." if cell.get("level") == "LOW"
                  else " Because some factors are missing, the score reflects only the evidence that exists.")
     sections.append(_sec("meaning", "What to take from this", take))
-    headline = f"{cell['level']} risk (score {cell['score']:.2f}): " + (f"sea surface {_direction(a)}" if a is not None else "anomaly unavailable")
+    headline = f"{'MODERATE' if cell['level'] == 'MEDIUM' else cell['level']} risk (score {cell['score']:.2f}): " + (f"sea surface {_direction(a)}" if a is not None else "anomaly unavailable")
     return {"headline": headline, "sections": sections, "grounded_in": grounded, "contributions": contrib, "kind": "risk_cell"}
 
 
@@ -142,7 +142,7 @@ def explain_event(event: dict, info: dict, species: list[dict], biodiversity_evi
         txt = f"Stored OBIS records of {len(species)} species fall inside the event's bounding box (last 2 years), for example {names}."
         txt += (f" {len(sens)} of them are listed VU/EN/CR by their source." if sens else " No conservation-sensitive category is recorded for them in the stored data.")
     else:
-        txt = ("No stored OBIS records fall inside the event's bounding box. That is insufficient biodiversity coverage, not evidence that no animals are present."
+        txt = ("No stored OBIS records fall inside the event's bounding box. That is limited biodiversity coverage, not evidence that no animals are present."
                if biodiversity_evidence != "observed" else "Records overlap the event.")
     sections.append(_sec("biodiversity", "Biodiversity evidence overlapping the event", txt))
     missing = ["Species presence beyond the stored OBIS sample is unknown.", "Biological impact is not measured by this system."]
@@ -320,3 +320,98 @@ def explain_species(x: dict) -> dict:
              else " Exposure is reported as potential exposure only; this system does not measure harm to the species.")
     secs.append(_sec("conservation", "Why it matters for conservation", cons))
     return {"headline": f"{name}: {x['share_in_heatwave'] * 100:.0f}% of records inside a marine heatwave" if x["heatwave_available"] else f"{name}: exposure at its recorded locations", "sections": secs, "kind": "species"}
+
+
+# ---- potential environmental implications ----------------------------------------------------------------------------------------------------
+EVIDENCE_KINDS = {
+    "observed": "Observed measurement",
+    "model_prediction": "Model prediction",
+    "statistical": "Statistical association",
+    "model_explanation": "Model explanation (sensitivity of the trained model)",
+    "possible_explanation": "Possible explanation (plausible, not tested by this model)",
+    "physical_cause": "Not established (physical cause cannot be inferred from this model)",
+    "ecological_implication": "Possible ecological implication (general knowledge, not measured here)",
+}
+
+
+def implications(ctx: dict) -> dict:
+    """What the observed and forecast conditions at a place MAY mean for marine ecosystems, in careful language. Each statement says what kind of evidence it is. Nothing here
+    says that harm has happened: this system has no observations of bleaching, mortality or changes in species distribution."""
+    a = ctx.get("anomaly")
+    if a is None:
+        return {"available": False, "items": [], "message": "No SST anomaly exists for this place and date, so no implications are drawn.", "kinds": EVIDENCE_KINDS}
+    hw, fc, sp, risk = ctx.get("heatwave") or {}, ctx.get("forecast") or {}, ctx.get("species") or {}, ctx.get("risk") or {}
+    items: list[dict] = []
+
+    def add(kind, text):
+        items.append({"kind": kind, "label": EVIDENCE_KINDS[kind], "text": text})
+
+    run = hw.get("run_days") if hw.get("inside") else None
+    if a >= 1.0:
+        add("observed", f"Sea surface temperature is {a:+.1f} °C above the normal for this day of the year.")
+        add("ecological_implication", "Water this much warmer than normal may increase thermal stress for temperature-sensitive species and may change where some species are found.")
+    elif a <= -1.0:
+        add("observed", f"Sea surface temperature is {a:+.1f} °C below the normal for this day of the year.")
+        add("ecological_implication", "Water this much colder than normal may increase stress for species adapted to warmer water and may change where some species are found.")
+    else:
+        add("observed", f"Sea surface temperature is {a:+.1f} °C from normal, within the usual range of variation.")
+        add("ecological_implication", "A departure this small carries no unusual thermal signal for marine life at this place and time.")
+    if run:
+        add("observed", f"This cell has been in a marine-heatwave state for {run} days.")
+        add("ecological_implication", "Warm conditions that last for weeks may reduce habitat suitability and alter feeding conditions for some species; longer and stronger events are given higher monitoring priority.")
+    if abs(a) >= 1.0:
+        hot = a > 0
+        add("ecological_implication", f"Fisheries: a surface temperature {abs(a):.1f} °C {'above' if hot else 'below'} normal may shift where temperature-sensitive fish and invertebrates are found, which can change their availability to fisheries. "
+                                      "This system has no catch or stock data.")
+        add("ecological_implication", ("Plankton: persistent warm surface water can strengthen stratification and may reduce nutrient supply to the surface, which can affect plankton productivity. " if hot else
+                                       "Plankton: colder-than-normal surface water can change stratification and nutrient supply and may shift plankton community composition. ") + "Chlorophyll and nutrients are not measured here.")
+        add("ecological_implication", f"Spawning and recruitment: a departure of {a:+.1f} °C during a spawning season can affect the timing and success of spawning and the survival of larvae for some species. The spawning seasons of species here are not known to this system.")
+        add("ecological_implication", f"Habitat suitability: for species with narrow thermal ranges, water {abs(a):.1f} °C {'warmer' if hot else 'colder'} than normal may reduce habitat suitability and shift species distributions.")
+    if run and run >= 14:
+        add("ecological_implication", f"Prolonged exposure: {run} consecutive days in heatwave conditions can increase ecological pressure on heat-sensitive species more than a short spike of the same size.")
+    lat = ctx.get("lat")
+    if lat is not None and a >= 1.0 and run:
+        if abs(lat) <= 30:
+            add("ecological_implication", "In the tropics and subtropics, reef-building corals, where they are present, are sensitive to sustained warm anomalies. Whether corals are present here, and whether bleaching "
+                                          "occurs, is not known to this system (bleaching alerts come from NOAA Coral Reef Watch).")
+        else:
+            add("ecological_implication", "At mid and high latitudes, cool-water habitats such as kelp forests, where present, can be stressed by prolonged warm anomalies. Whether they are present here is not known to this system.")
+    if fc.get("available") and fc.get("forecast_anomaly"):
+        last = fc["forecast_anomaly"][-1]
+        from app.services import forecast_reading as _fr
+        traj = _fr.trajectory(a, last)
+        keeps = traj in ("persistent", "strengthening") and abs(a) >= 0.5
+        add("model_prediction", f"The ConvLSTM forecast anomaly on day {len(fc['forecast_anomaly'])} is {last:+.1f} °C, so the departure from normal is expected to {_fr.EXPECTED[traj]}. "
+                                "This is a model estimate with the typical error shown in the forecast section.")
+        if keeps and abs(a) >= 1.0:
+            add("ecological_implication", "If the forecast verifies, the thermal stress described above would continue over the forecast period.")
+    elif fc and not fc.get("available"):
+        add("model_prediction", "No forecast applies to this date, so nothing is said about how conditions may continue.")
+    items_sp = sp.get("items") or []
+    if items_sp:
+        sens = [s for s in items_sp if s.get("conservation_sensitive")]
+        add("observed", f"OBIS records of {len(items_sp)} species lie within about {sp.get('radius_deg', 3):g}° of this location" + (f", {len(sens)} of them with a vulnerable, endangered or critically endangered category." if sens else "."))
+        add("ecological_implication", "These species may be exposed to the conditions above. Records show where animals were observed, not their range, so this is potential exposure only.")
+    else:
+        add("observed", "Biodiversity coverage is limited here (no stored observations nearby), so nothing is said about which species may be exposed; additional observations would improve confidence.")
+    rd = fc.get("reading") if fc.get("available") else None
+    if rd and rd["label"] == "cooling" and abs(rd["sst_change_c"]) >= 0.5:
+        add("model_prediction", f"The model predicts SST falling by {abs(rd['sst_change_c']):.2f} °C over {rd['days']} days (anomaly {rd['anomaly_now_c']:+.1f} °C now, {rd['anomaly_end_c']:+.1f} °C at day +{rd['days']}).")
+        add("ecological_implication", f"Cooling of this size may change habitat suitability for species with narrow thermal ranges and could shift where some species are found. Cooler surface water can also be associated with changes "
+                                      "in mixing and productivity, and may alter the behaviour of temperature-sensitive animals such as feeding and movement. None of this is measured here.")
+    ob = ctx.get("obis") or {}
+    if ob.get("available") and ob.get("exposure_text"):
+        c = ob["counts"]
+        add("observed", f"{ob['label']} {c['threatened_species']} of the {c['distinct_species']:,} species carry a threatened (CR, EN or VU) IUCN Red List category in OBIS.")
+        add("ecological_implication", ob["exposure_text"])
+    elif ob.get("available"):
+        add("observed", ob["label"])
+    cx = ctx.get("context") or {}
+    if (cx.get("chlorophyll") or {}).get("available"):
+        add("observed", cx["chlorophyll"]["text"])
+    if (cx.get("currents") or {}).get("available"):
+        add("observed", cx["currents"]["text"])
+    if risk.get("level"):
+        add("statistical", f"The project risk indicator is {'MODERATE' if risk['level'] == 'MEDIUM' else risk['level']} ({risk.get('score'):.2f}). It combines the factors above by fixed weights; it ranks monitoring priority and is not a measurement of harm.")
+    return {"available": True, "items": items, "kinds": EVIDENCE_KINDS,
+            "caveat": "These are possible implications drawn from general ecological knowledge. This system has no observations of damage, bleaching, mortality or changes in species distribution, and it does not claim any."}

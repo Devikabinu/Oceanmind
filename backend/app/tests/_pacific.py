@@ -54,7 +54,10 @@ def build(root, source=PROVIDER, hot=None):
             cube[k, 5] = has
         np.save(root / "cubes" / f"{name}.npy", cube)
         np.save(root / "cubes" / f"{name}_dates.npy", idx.values.astype("datetime64[ns]"))
-    meta = {"lat": LAT.tolist(), "lon": LON.tolist(), "resolution": 4.0, "channels": CHANNELS}
+    meta = {"lat": LAT.tolist(), "lon": LON.tolist(), "resolution": 4.0, "channels": CHANNELS,
+            "lookback_days": 7, "horizons": list(range(1, 8)), "target_channel": "sst", "forecast_channels": ["sst", "sst_anom", "sst_grad", "doy_sin", "doy_cos", "mask_sst"],
+            "splits": {"train": {"start": "2020-01-01", "end": "2020-01-12", "days": 12}, "val": {"start": "2020-01-13", "end": "2020-01-13", "days": 1},
+                       "test": {"start": "2020-01-14", "end": "2020-01-20", "days": 7}}}
     if source:
         meta.update(source=source, lon_convention="east longitude, continuous (labels may exceed 180 for domains crossing the antimeridian)")
     (root / "meta.json").write_text(json.dumps(meta))

@@ -1,6 +1,6 @@
 """Temporary, deterministic, Pacific-wide SST generator, a stand-in for the real Pacific dataset.
 
-THESE VALUES ARE GENERATED. They are not measurements and must never be labelled as NOAA, Copernicus or any other observational source. The field is built
+THESE VALUES ARE GENERATED. They are not measurements and must never be labelled as NOAA or any other observational source. The field is built
 from smooth analytic structure (zonal temperature profile, warm pool, cold tongue, boundary-current and upwelling features, seasonal cycle) plus smooth
 spatial modes whose amplitudes evolve as sums of slow sinusoids, and a few persistent warm/cold anomaly features anchored to the end of the record. Every
 day is a pure function of (configuration, date): the same configuration always gives bit-identical output, any date can be requested directly, and

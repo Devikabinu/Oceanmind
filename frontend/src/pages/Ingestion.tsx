@@ -8,7 +8,6 @@ import type { IngestionJob, IngestionJobStatus } from "../types";
 
 const SOURCES: { value: IngestionSource; label: string }[] = [
   { value: "noaa", label: "NOAA OISST v2.1" },
-  { value: "copernicus", label: "Copernicus Marine SST" },
   { value: "obis", label: "OBIS" },
 ];
 
@@ -91,7 +90,7 @@ export default function Ingestion() {
 
   return (
     <div>
-      <h1 className="text-xl font-semibold text-slate-900">Ingestion</h1>
+      <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Ingestion</h1>
       <p className="mt-1 text-sm text-slate-500">
         Pull a geographic/temporal subset from a registered data source into the platform.
       </p>
@@ -216,7 +215,7 @@ export default function Ingestion() {
           <tbody className="divide-y divide-slate-100">
             {jobs.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-4 py-6 text-center text-slate-400">
+                <td colSpan={7} className="px-4 py-6 text-center text-slate-500">
                   No ingestion jobs have run yet. Start one with the form above, or run python -m app.jobs sync-biodiversity.
                 </td>
               </tr>

@@ -71,6 +71,29 @@ def outputs(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _no_live_external_data(tmp_path, monkeypatch):
+    """No test reaches OBIS or NOAA ERDDAP: the live services are switched off and their caches point into the test's own folder."""
+    from app.services import obis_service, ocean_context, physical_drivers
+    monkeypatch.setattr(obis_service, "ENABLED", False)
+    monkeypatch.setattr(ocean_context, "ENABLED", False)
+    monkeypatch.setattr(physical_drivers, "ENABLED", False)
+    monkeypatch.setattr(physical_drivers, "cache_dir", lambda: tmp_path / "physical_cache")
+    physical_drivers.clear_state()
+    from app.core.config import get_settings
+    from app.services import physical_interpretation
+    monkeypatch.setattr(get_settings(), "AI_PROVIDER", "none", raising=False)                  # no test reaches an AI provider; the cache points into the test's folder
+    monkeypatch.setattr(physical_interpretation, "_cache_dir", lambda: tmp_path / "physical_ai")
+    physical_interpretation.clear_state()
+    monkeypatch.setattr(obis_service, "cache_dir", lambda: tmp_path / "obis_cache")
+    monkeypatch.setattr(ocean_context, "cache_dir", lambda: tmp_path / "context_cache")
+    obis_service.clear_state()
+    ocean_context.clear_state()
+    yield
+    obis_service.clear_state()
+    ocean_context.clear_state()
+
+
+@pytest.fixture(autouse=True)
 def _no_real_climate_indices(tmp_path, monkeypatch):
     """Tests never depend on the climate-index file a developer may have downloaded."""
     from app.services import climate_indices
