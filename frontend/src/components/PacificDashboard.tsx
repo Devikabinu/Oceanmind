@@ -124,14 +124,6 @@ export default function PacificDashboard() {
                   note={`${signed(F.forecast_anomaly[F.forecast_anomaly.length - 1])} °C versus the daily climatology for ${F.target_dates[F.target_dates.length - 1]}.`}
                   meta={`Issued from ${F.issued_from} · ${F.model.name}`}
                 />
-                <p className={`rounded-md border px-2 py-1.5 text-xs ${F.performance ? (F.performance.beats_persistence ? "border-emerald-200 bg-emerald-50 text-emerald-900" : "border-amber-200 bg-amber-50 text-amber-900") : "border-slate-200 bg-slate-50 text-slate-700"}`} data-testid="persistence-note">
-                  <strong className="font-semibold">Benchmark: </strong>
-                  {F.performance
-                    ? F.performance.beats_persistence
-                      ? "Measured on this dataset, the model beat persistence at every horizon."
-                      : "Measured on this dataset, the model did not beat a simple persistence forecast; treat it with caution."
-                    : "This model has not been evaluated on this dataset."}
-                </p>
               </>
             )}
           </Status>
