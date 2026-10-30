@@ -111,6 +111,8 @@ def run(force: bool = False) -> dict:
         log.warning("restored the previous dataset generation after an interrupted publication")
     before = check_consistency(processed, store)
     previous = before["products"].get("processed_cubes") or before["latest"]          # the day the processed dataset (what the application shows) ends on
+    write_status(ROOT, outcome="running", message="A refresh is running; the published dataset is unchanged until it finishes.", latest_observation=previous, processed_latest=previous,
+                 forecast_dates=before["forecast_dates"], consistent=before["consistent"], problems=before["problems"])           # an unfinished run (killed, machine asleep) then shows as interrupted, never as a success
     sync = stage("-m", "oceanmind_environment", "sync", "--config", CONFIG, capture=True)
     report = last_json(sync.stdout or "") if sync.returncode == 0 else None
     if sync.returncode != 0 or report is None:

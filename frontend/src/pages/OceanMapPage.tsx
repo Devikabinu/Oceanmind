@@ -242,7 +242,7 @@ export default function OceanMapPage() {
       {mapError && <div role="alert" className="bg-amber-50 px-4 py-2 text-sm text-amber-900">{dsError ?? `Map data unavailable: ${baseState.error}`}</div>}
 
       <DataDatesNote />
-      <div className="grid grid-cols-1 gap-3 pt-3 xl:grid-cols-[minmax(0,1fr)_25rem]">
+      <div className={`grid grid-cols-1 gap-3 pt-3 ${selected ? "xl:grid-cols-[minmax(0,1fr)_minmax(34rem,46%)]" : ""}`}>
         <div>
           <SstMap
             layer={layer}
@@ -283,7 +283,7 @@ export default function OceanMapPage() {
             <p role="note" className="mt-1 rounded bg-slate-50 px-2 py-1 text-xs text-slate-700">Forecasts exist for the latest date ({range.latest_date}) only; the forecast layers show that date.</p>
           )}
         </div>
-        <div className={selected ? "fixed inset-x-0 bottom-0 z-[1150] max-h-[68vh] overflow-y-auto rounded-t-xl shadow-2xl xl:static xl:max-h-none xl:overflow-visible xl:shadow-none" : ""}>
+        <div className={selected ? "fixed inset-x-0 bottom-0 z-[1150] rounded-t-xl shadow-2xl xl:static xl:shadow-none" : ""}>
         <LocationReport point={selected} dataset={dataset} date={act.date} onClose={() => setSelected(null)} onFocus={(la, lo) => setSelected({ lat: la, lon: lo > 180 ? lo - 360 : lo })} />
         </div>
       </div>

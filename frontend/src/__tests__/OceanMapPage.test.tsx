@@ -198,7 +198,7 @@ describe("Ocean Map: location report and deep links", () => {
     const rep = await screen.findByRole("complementary", { name: "Location report" });
     expect(await within(rep).findByText(/This cell is inside a marine heatwave/)).toBeInTheDocument();
     expect(within(rep).getByText(/Historical context: warmer than 98% of 449 same-season anomalies/)).toBeInTheDocument();
-    expect(within(rep).getByText("HIGH")).toBeInTheDocument();
+    expect(within(rep).getAllByText("HIGH").length).toBeGreaterThan(0);
     expect(within(rep).getByText(/not evidence that no species are present/)).toBeInTheDocument();
     expect(within(rep).getByText(/Forecast \(model prediction\)/)).toBeInTheDocument();
     expect(within(rep).getByText(/NOAA OISST v2.1 \(observations\)/)).toBeInTheDocument();

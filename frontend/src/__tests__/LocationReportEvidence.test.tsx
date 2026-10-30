@@ -58,6 +58,9 @@ const explanation = (over: Partial<ForecastExplanation> = {}): ForecastExplanati
   ...over,
 } as ForecastExplanation);
 
+/** The report is in tabs; this opens one of them (the other tabs stay in the page but are hidden). */
+const goTab = async (name: string) => { await userEvent.setup().click(await screen.findByRole("tab", { name: new RegExp(`^${name}`) })); };
+
 function show(rep: LocationReportData) {
   env.getReport.mockResolvedValue(rep);
   return render(
@@ -209,6 +212,23 @@ describe("data status", () => {
     expect(within(box).getByTestId("dd-state")).toHaveTextContent("current");
   });
 
+  it("separates the last source check from the last dataset update, and says when the source was asked", async () => {
+    const box = await show2({ status: "delayed", refresh: refresh({ outcome: "unchanged", source_latest: "2026-10-27", source_checked_at: "2026-10-29T10:50:08+00:00", last_success_at: "2026-10-29T10:50:08+00:00", last_update_at: "2026-10-29T06:51:18+00:00" }) });
+    expect(box).toHaveTextContent("Last successful source check");
+    expect(within(box).getByTestId("dd-success")).toHaveTextContent("2026-10-29 10:50 UTC");
+    expect(within(box).getByTestId("dd-update")).toHaveTextContent("2026-10-29 06:51 UTC");
+    expect(within(box).getByTestId("dd-source")).toHaveTextContent(/2026-10-27.*checked 2026-10-29 10:50 UTC/);
+    expect(box).toHaveTextContent("Latest source observation (at the last check)");
+  });
+
+  it("shows a refresh that is running or was interrupted, never as a success", async () => {
+    let box = await show2({ status: "delayed", refresh: refresh({ outcome: "running" }) });
+    expect(within(box).getByTestId("dd-state")).toHaveTextContent("delayed (refresh running)");
+    cleanup();
+    box = await show2({ status: "refresh failed", refresh: refresh({ outcome: "interrupted" }) });
+    expect(within(box).getByTestId("dd-state")).toHaveTextContent("refresh failed (last attempt interrupted)");
+  });
+
   it("does not invent a refresh time when no refresh has run", async () => {
     const box = await show2({ status: "current", refresh: null });
     expect(within(box).getByTestId("dd-success")).toHaveTextContent("not yet");
@@ -219,6 +239,7 @@ describe("🤖 Explainable AI — Why this forecast?", () => {
   it("loads only when opened and shows the actual inputs, seven predictions and the sensitivity caveat", async () => {
     const user = userEvent.setup();
     show(report());
+    await goTab("Forecast");
     const summary = await screen.findByText("🤖 Explainable AI — Why this forecast?");
     expect(env.getForecastExplanation).not.toHaveBeenCalled();
     await user.click(summary);
@@ -236,6 +257,7 @@ describe("🤖 Explainable AI — Why this forecast?", () => {
       mae_skill_vs_persistence: [0.2, 0.1, 0.05, 0.0, -0.02, -0.05, -0.1], beats_persistence: false };
     env.getForecastExplanation.mockResolvedValue(explanation({ model: m }));
     show(report());
+    await goTab("Forecast");
     await user.click(await screen.findByText("🤖 Explainable AI — Why this forecast?"));
     const sec = await screen.findByRole("region", { name: "ConvLSTM versus persistence" });
     expect(within(sec).getByText("Persistence °C")).toBeInTheDocument();
@@ -252,6 +274,7 @@ describe("🤖 Explainable AI — Why this forecast?", () => {
       mae_skill_vs_persistence: [-0.05, -0.09, -0.1, -0.1, -0.11, -0.12, -0.12], beats_persistence: false };
     env.getForecastExplanation.mockResolvedValue(explanation({ model: m }));
     show(report());
+    await goTab("Forecast");
     await user.click(await screen.findByText("🤖 Explainable AI — Why this forecast?"));
     const sec = await screen.findByRole("region", { name: "ConvLSTM versus persistence" });
     expect(sec).toHaveTextContent(/did not have a lower error than persistence at any horizon, so persistence was as good or better throughout/);
@@ -262,6 +285,7 @@ describe("🤖 Explainable AI — Why this forecast?", () => {
     const user = userEvent.setup();
     env.getForecastExplanation.mockResolvedValue({ available: false, dataset: "pacific", message: "The forecast was issued from 2026-10-22 but the newest observation is 2026-10-27." });
     show(report());
+    await goTab("Forecast");
     await user.click(await screen.findByText("🤖 Explainable AI — Why this forecast?"));
     expect(await screen.findByText(/issued from 2026-10-22 but the newest observation/)).toBeInTheDocument();
   });
@@ -277,9 +301,10 @@ describe("report structure and explanations from backend values", () => {
   it("follows the flow conditions, anomaly, heatwave, biodiversity, context, forecast, model explanation, exposure, implications, risk, alerts, data", async () => {
     show(report({ forecast: fc() as never, risk: risk([driver("anomaly", "Anomaly")]) as never, implications: { available: true, kinds: {}, items: [], caveat: "c" } } as never));
     await screen.findByTestId("forecast-reading");
-    const titles = screen.getAllByRole("heading", { level: 3 }).map((h) => h.textContent);
-    const order = ["Current conditions", "Anomaly", "Marine heatwave analysis", "Biodiversity & ecosystem context", "Ecological and physical context", "7-day forecast", "Explainable AI: why this forecast",
+    const titles = screen.getAllByRole("heading", { level: 3, hidden: true }).map((h) => h.textContent);
+    const order = ["How unusual is this?", "Marine heatwave analysis", "Sea surface temperature: last week and the next seven days", "Explainable AI: why this forecast", "Biodiversity & ecosystem context", "Ecological and physical context",
       "Potential exposure", "Potential environmental implications", "Risk assessment", "Why this risk level", "Alerts", "Data & methodology"];
+    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(expect.arrayContaining([expect.stringMatching(/^Overview/), expect.stringMatching(/^Marine heatwave/), expect.stringMatching(/^Forecast/), expect.stringMatching(/^Risk/), expect.stringMatching(/^Alerts/)]));
     const idx = order.map((t) => titles.indexOf(t));
     expect(idx.every((v) => v >= 0)).toBe(true);
     expect([...idx].sort((x, y) => x - y)).toEqual(idx);
@@ -288,6 +313,7 @@ describe("report structure and explanations from backend values", () => {
   it("shows all forecast days with predicted SST, anomaly and direction, and the reading", async () => {
     show(report({ forecast: fc() as never }));
     expect(await screen.findByTestId("forecast-reading")).toHaveTextContent(/continued warming.*strengthens/);
+    await goTab("Forecast");
     const table = screen.getByRole("table", { name: "Forecast at this location" });
     expect(within(table).getAllByRole("row")).toHaveLength(4);
     expect(within(table).getByText("Direction")).toBeInTheDocument();
@@ -301,7 +327,7 @@ describe("report structure and explanations from backend values", () => {
     const w = await screen.findByTestId("why-forecast");
     expect(w).toHaveTextContent("Why is the forecast warmer?");
     expect(w).toHaveTextContent(/Recent trend: the anomaly here went from \+0\.8/);
-    expect(w).toHaveTextContent(/cannot be established/);
+    expect(w).not.toHaveTextContent(/cannot be established|not established/i);          // the "not established" statement is not shown in the interface
   });
 
   it("explains an active marine heatwave and a missing one without calling it missing data", async () => {
@@ -325,8 +351,10 @@ describe("report structure and explanations from backend values", () => {
   it("the forecast explanation is labelled as model sensitivity, not causation, and shows the actual inputs", async () => {
     const user = userEvent.setup();
     show(report({ forecast: fc() as never }));
-    expect(await screen.findByText(/Model-based sensitivity explanation: not causal attribution/)).toBeInTheDocument();
+    await screen.findByTestId("forecast-reading");
+    expect(screen.queryByText(/NOT ESTABLISHED/i)).not.toBeInTheDocument();
     await user.click(screen.getByText("🤖 Explainable AI — Why this forecast?"));
+    expect(await screen.findByText(/Model-based sensitivity explanation: not causal attribution/)).toBeInTheDocument();                // kept in the explanation's own limits section
     expect(await screen.findByTestId("xai-inputs")).toHaveTextContent(/Channels supplied to the model on every input day: sea surface temperature.*SST gradient.*ocean\/land mask/);
   });
 
@@ -448,6 +476,7 @@ describe("OBIS biodiversity, exposure, context and sources", () => {
   it("shows the recent trends and the change from the latest observation for each forecast day", async () => {
     show(report({ forecast: { ...fcast(), change_vs_latest_c: [0.2, 0.4, 0.5] } as never, analysis: { recent_anomaly: [], why_forecast: null, trends: { days: 7, sst_3d_c_per_day: 0.05, sst_7d_c_per_day: 0.03, anomaly_3d_change_c: 0.2, anomaly_7d_change_c: 0.5, from: "2026-10-21", to: "2026-10-27" } } as never }));
     expect(await screen.findByTestId("recent-trends")).toHaveTextContent(/SST \+0\.05 °C\/day over 3 days and \+0\.03 °C\/day over 7 days/);
+    await goTab("Forecast");
     const table = screen.getByRole("table", { name: "Forecast at this location" });
     expect(within(table).getByText("Change from latest °C")).toBeInTheDocument();
     expect(within(table).getByText("+0.50")).toBeInTheDocument();
@@ -479,6 +508,7 @@ describe("Explainable AI panel", () => {
   const open = async (rep: LocationReportData) => {
     const user = userEvent.setup();
     const view = show(rep);
+    await goTab("Forecast");
     await user.click(await screen.findByText("🤖 Explainable AI — Why this forecast?"));
     return view;
   };
@@ -679,6 +709,7 @@ describe("B. Physical explanation", () => {
     const user = userEvent.setup();
     show(report({ forecast: { available: true, issued_from: "2026-10-27", dates: ["2026-10-28"], forecast_sst: [28.6], forecast_anomaly: [1.5], persistence_sst: [28.4], typical_error_c: [0.1], direction: "warming", summary: "s", model: "ConvLSTM",
       trained_on: "x", beats_persistence: false, direction_by_day: ["warming"], reading: { label: "warming", anomaly_label: "persistent", sst_change_c: 0.2, peak_day: 1, peak_anomaly_c: 1.5, max_abs_anomaly_c: 1.5, mean_anomaly_c: 1.5, anomaly_now_c: 1.3, anomaly_end_c: 1.5, days: 1, text: "t" } } as never }));
+    await goTab("Forecast");
     await user.click(await screen.findByText("🤖 Explainable AI — Why this forecast?"));
   };
 
@@ -986,5 +1017,83 @@ describe("B. Physical explanation", () => {
     await openXai();
     await screen.findByTestId("phys-evidence");
     for (const id of ["phys-evidence", "phys-sources"]) expect(screen.getByTestId(id).querySelector("table")!.closest(".overflow-x-auto")).not.toBeNull();
+  });
+});
+
+describe("the report as tabs with visual metrics", () => {
+  const fc = (over: Record<string, unknown> = {}) => ({ available: true, issued_from: "2026-10-27", dates: ["2026-10-28", "2026-10-29", "2026-10-30"], forecast_sst: [28.6, 28.8, 28.9], forecast_anomaly: [1.5, 1.8, 2.0], persistence_sst: [28.4, 28.4, 28.4],
+    typical_error_c: [0.1, 0.18, 0.24], direction: "warming", summary: "s", model: "ConvLSTM", trained_on: "northeast Pacific", beats_persistence: false, direction_by_day: ["warming", "warming", "warming"],
+    reading: { label: "warming", anomaly_label: "strengthening", sst_change_c: 0.5, peak_day: 3, peak_anomaly_c: 2.0, max_abs_anomaly_c: 2.0, mean_anomaly_c: 1.77, anomaly_now_c: 1.3, anomaly_end_c: 2.0, days: 3,
+      text: "The model predicts continued warming. The warm anomaly strengthens: +1.3 °C now to +2.0 °C at day +3." }, ...over });
+  it("opens on an overview with the key values as tiles", async () => {
+    show(report({ forecast: fc() as never }));
+    expect(await screen.findByTestId("tile-sst")).toHaveTextContent(/Sea surface temperature/);
+    expect(screen.getByTestId("tile-normal")).toHaveTextContent(/Normal for this day/);
+    expect(screen.getByTestId("tile-anomaly")).toHaveTextContent(/Anomaly/);
+    expect(screen.getByTestId("tile-heatwave")).toHaveTextContent(/Marine heatwave/);
+    expect(screen.getByRole("tab", { name: /^Overview/ })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("shows one tab at a time, reachable by click and by the arrow keys", async () => {
+    const user = userEvent.setup();
+    show(report({ forecast: fc() as never }));
+    await screen.findByTestId("tile-sst");
+    const tabs = screen.getAllByRole("tab");
+    expect(tabs.map((t) => t.textContent)).toEqual(expect.arrayContaining([expect.stringMatching(/^Overview/), expect.stringMatching(/^Forecast/), expect.stringMatching(/^Risk/), expect.stringMatching(/^Alerts/)]));
+    expect(screen.getAllByRole("tabpanel")).toHaveLength(1);                                    // hidden panels are not exposed
+    await user.click(screen.getByRole("tab", { name: /^Forecast/ }));
+    expect(screen.getByRole("tab", { name: /^Forecast/ })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tabpanel")).toHaveAttribute("id", "lr-panel-forecast");
+    screen.getByRole("tab", { name: /^Forecast/ }).focus();
+    await user.keyboard("{ArrowRight}");
+    expect(screen.getByRole("tab", { name: /^Biodiversity/ })).toHaveAttribute("aria-selected", "true");
+    await user.keyboard("{Home}");
+    expect(screen.getByRole("tab", { name: /^Overview/ })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("lets the reader compare the anomaly with the normal, with this cell's history and with the region", async () => {
+    const user = userEvent.setup();
+    show(report({ forecast: fc() as never }));
+    await screen.findByTestId("tile-sst");
+    expect(screen.getByRole("img", { name: /Anomaly .* on a scale from -4 to \+4/ })).toBeInTheDocument();
+    await user.click(screen.getByRole("radio", { name: "This cell's history" }));
+    expect(screen.getByRole("img", { name: /of this cell's own history/ })).toBeInTheDocument();
+    await user.click(screen.getByRole("radio", { name: "Region today" }));
+    expect(screen.getByRole("img", { name: /among the ocean cells of the region/ })).toBeInTheDocument();
+  });
+
+  it("expands to a larger view and closes it with Escape, without losing the report", async () => {
+    const user = userEvent.setup();
+    show(report({ forecast: fc() as never }));
+    await screen.findByTestId("tile-sst");
+    await user.click(screen.getByRole("button", { name: "Expand" }));
+    expect(screen.getByRole("button", { name: "Collapse" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("tile-sst")).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    expect(screen.getByRole("button", { name: "Expand" })).toBeInTheDocument();
+  });
+
+  it("draws the forecast as a chart with a day-by-day strip and never shows a persistence column or a 'not established' statement", async () => {
+    const user = userEvent.setup();
+    show(report({ forecast: fc() as never }));
+    await screen.findByTestId("tile-sst");
+    await user.click(screen.getByRole("tab", { name: /^Forecast/ }));
+    expect(screen.getByRole("img", { name: /Observed sea surface temperature of the last days and the forecast/ })).toBeInTheDocument();
+    expect(screen.getByRole("list", { name: "Forecast days" }).querySelectorAll("li")).toHaveLength(3);
+    const text = screen.getByRole("complementary", { name: "Location report" }).textContent ?? "";
+    expect(text).not.toMatch(/not established|cannot be inferred from this model/i);
+    expect(screen.queryByText("Persistence °C")).not.toBeInTheDocument();
+  });
+
+  it("shows the marine-heatwave category, duration and area as visual indicators", async () => {
+    const user = userEvent.setup();
+    show(report({ forecast: fc() as never, heatwave: { available: true, inside: true, message: "Marine heatwave: YES.", run_days: 40, event_region: "Eastern Pacific", why_it_matters: "w", analysis: { active: true, status: "Persisting", lines: ["a line"], trend: null, continuation: null },
+      event: { id: "mhw-1", start_date: "2026-06-27", duration_days: 123, area_km2: 44884939, cells: 1, category: 3, category_name: "III (Severe)", current_anomaly_c: 2.5, max_anomaly_c: 8, cumulative_intensity_c_days: 219 } } as never }));
+    await screen.findByTestId("tile-heatwave");
+    expect(screen.getByTestId("tile-heatwave")).toHaveTextContent("YES");
+    await user.click(screen.getByRole("tab", { name: /^Marine heatwave/ }));
+    expect(screen.getByRole("list", { name: "Marine heatwave category scale" }).querySelector("[aria-current=true]")).toHaveTextContent("Severe");
+    expect(screen.getByText("44.9 million km²")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: /Days in heatwave state at this cell: 40 days/ })).toBeInTheDocument();
   });
 });

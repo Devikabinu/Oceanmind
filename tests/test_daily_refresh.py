@@ -18,9 +18,22 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 # ---- date discovery and the one-day lag ----------------------------------------------------------------------------------------------------
-@pytest.mark.parametrize("now, expected", [("2026-10-28 09:30", "2026-10-27"), ("2026-10-29 00:05", "2026-10-28"), ("2027-01-01", "2026-12-31"), ("2028-03-01", "2028-02-29")])
-def test_the_expected_newest_day_is_yesterday_and_advances_with_the_clock(now, expected):
+@pytest.mark.parametrize("now, expected", [
+    ("2026-10-30 04:49", "2026-10-28"),            # the morning of 30 October (UTC): 2026-10-29 is posted that afternoon, so 2026-10-28 is the newest published day
+    ("2026-10-30 13:44", "2026-10-28"), ("2026-10-30 13:45", "2026-10-29"), ("2026-10-30 23:59", "2026-10-29"),
+    ("2026-10-31 00:05", "2026-10-29"), ("2027-01-01 14:00", "2026-12-31"), ("2028-03-01 14:00", "2028-02-29")])
+def test_the_expected_newest_day_follows_noaas_publication_time_not_the_calendar_date(now, expected):
     assert str(sc.expected_latest(now).date()) == expected
+
+
+def test_a_time_with_a_zone_is_converted_to_utc_and_a_naive_time_is_read_as_utc():
+    assert sc.expected_latest("2026-10-30 19:15+05:30") == sc.expected_latest("2026-10-30 13:45")                 # 19:15 in India is 13:45 UTC
+    assert str(sc.expected_latest("2026-10-30 19:14+05:30").date()) == "2026-10-28"
+    assert sc.expected_latest().tzinfo is None
+
+
+def test_the_observed_publication_time_is_the_one_in_use():
+    assert sc.PUBLICATION_UTC == pd.Timedelta(hours=13, minutes=45)       # NOAA's files of 2026-10-24..28 were all uploaded at 13:31 UTC on the next day
 
 
 def test_the_newest_day_is_discovered_from_the_listings_not_fixed():
@@ -33,11 +46,18 @@ def test_the_newest_day_is_discovered_from_the_listings_not_fixed():
 
 
 def test_lag_status_current_delayed_and_stale():
-    assert sc.lag_status("2026-10-27", "2026-10-28 10:00") == {"latest": "2026-10-27", "expected": "2026-10-27", "behind_expected": 0, "status": "current", "lag_days": 1}
-    assert sc.lag_status("2026-10-26", "2026-10-28")["status"] == "delayed" and sc.lag_status("2026-10-26", "2026-10-28")["behind_expected"] == 1
-    s = sc.lag_status("2026-10-22", "2026-10-28")
+    assert sc.lag_status("2026-10-27", "2026-10-28 15:00") == {"latest": "2026-10-27", "expected": "2026-10-27", "behind_expected": 0, "status": "current", "lag_days": 1}
+    assert sc.lag_status("2026-10-26", "2026-10-28 15:00")["status"] == "delayed" and sc.lag_status("2026-10-26", "2026-10-28 15:00")["behind_expected"] == 1
+    s = sc.lag_status("2026-10-22", "2026-10-28 15:00")
     assert s["status"] == "stale" and s["behind_expected"] == 5
-    assert sc.lag_status("2026-10-28", "2026-10-28")["behind_expected"] == 0                      # never negative
+    assert sc.lag_status("2026-10-28", "2026-10-28 15:00")["behind_expected"] == 0                # never negative
+
+
+def test_the_dataset_is_not_called_delayed_before_noaa_has_published_the_next_day():
+    """On the morning of 2026-10-30 (UTC) a dataset to 2026-10-28 has everything NOAA has posted; one to 2026-10-27 is a day behind a day that exists."""
+    assert sc.lag_status("2026-10-28", "2026-10-30 04:49")["status"] == "current"
+    s = sc.lag_status("2026-10-27", "2026-10-30 04:49")
+    assert s["status"] == "delayed" and s["expected"] == "2026-10-28" and s["behind_expected"] == 1
 
 
 def test_forecast_starts_the_day_after_the_newest_observation_and_moves_with_it():
@@ -272,9 +292,39 @@ def test_a_lock_left_by_a_killed_run_does_not_block_the_next_one(tmp_path, monke
     assert m.lock_holder() is None
 
 
-def test_the_scheduler_script_registers_a_daily_task_that_runs_the_refresh():
+def test_the_scheduler_script_registers_a_daily_task_that_runs_the_refresh_after_noaa_publishes():
     ps = (ROOT / "scripts" / "install_daily_task.ps1").read_text()
-    assert "daily_refresh.py" in ps and "New-ScheduledTaskTrigger -Daily" in ps and "StartWhenAvailable" in ps and "-Remove" in ps
+    assert "daily_refresh.py" in ps and "New-ScheduledTaskTrigger -Daily" in ps and "StartWhenAvailable" in ps and "WakeToRun" in ps and "-Remove" in ps
+    assert "AddHours(13).AddMinutes(45)" in ps and "-RepetitionInterval" in ps and "$EveryHours = 2" in ps          # starts after the 13:31 UTC upload and repeats every two hours
+
+
+def test_a_run_writes_running_first_so_that_a_killed_run_is_not_mistaken_for_a_success(tmp_path, monkeypatch):
+    h = Harness(tmp_path, monkeypatch)
+    seen = {}
+    real = h.stage
+
+    def spy(*a, **k):
+        if a[:3] == ("-m", "oceanmind_environment", "sync"):
+            seen["during"] = rs.read_status(tmp_path)                    # what the status file says while the sync is under way
+        return real(*a, **k)
+    monkeypatch.setattr(h.m, "stage", spy)
+    h.sync_result = {"updated": False, "latest": "2026-10-22", "expected": "2026-10-27", "behind_expected": 5, "status": "stale"}
+    h.m.run()
+    assert seen["during"]["outcome"] == "running" and seen["during"]["latest_observation"] == "2026-10-22"
+    assert rs.read_status(tmp_path)["outcome"] == "unchanged"
+    # a run killed after it started leaves "running" behind, and does not overwrite the last success or the last update
+    before = rs.read_status(tmp_path)
+    rs.write_status(tmp_path, outcome="running", latest_observation="2026-10-22")
+    after = rs.read_status(tmp_path)
+    assert after["outcome"] == "running" and after["last_success_at"] == before["last_success_at"] and after["source_checked_at"] == before["source_checked_at"]
+
+
+def test_an_unchanged_check_updates_the_source_check_time_but_not_the_dataset_update_time(tmp_path):
+    a = rs.write_status(tmp_path, outcome="updated", latest_observation="2026-10-27", consistent=True, source_latest="2026-10-27")
+    b = rs.write_status(tmp_path, outcome="unchanged", latest_observation="2026-10-27", consistent=True, source_latest="2026-10-27")
+    assert b["last_update_at"] == a["last_update_at"] and b["source_checked_at"] >= a["source_checked_at"]
+    c = rs.write_status(tmp_path, outcome="source_unavailable", latest_observation="2026-10-27")
+    assert c["source_checked_at"] == b["source_checked_at"]                      # NOAA did not answer: the time of the last answer is kept
     assert sys.version_info >= (3, 9)
 
 

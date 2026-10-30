@@ -102,7 +102,15 @@ _LEGACY_SOURCE = {
 }
 
 
-EXPECTED_LAG_DAYS = 1       # the newest SST day expected on day D is D-1 (NOAA preliminary OISST); keep equal to oceanmind_environment.schedule.OPERATIONAL_LAG_DAYS
+EXPECTED_LAG_DAYS = 1       # day D of the NOAA preliminary OISST is posted on D+1 ...
+PUBLICATION_UTC = pd.Timedelta(hours=13, minutes=45)       # ... at about 13:31 UTC; keep both equal to oceanmind_environment.schedule (the same rule is tested on both sides)
+
+
+def expected_latest_day(now=None) -> pd.Timestamp:
+    """The newest observation day NOAA should have published by `now` (a naive `now` is UTC)."""
+    t = pd.Timestamp(now) if now is not None else pd.Timestamp.now(tz="UTC")
+    t = t.tz_convert("UTC").tz_localize(None) if t.tzinfo else t
+    return (t - PUBLICATION_UTC).normalize() - pd.Timedelta(days=EXPECTED_LAG_DAYS)
 
 
 def refresh_status_file() -> Path:
@@ -115,8 +123,17 @@ def refresh_status() -> dict | None:
         d = json.loads(refresh_status_file().read_text())
     except (OSError, ValueError):
         return None
-    return {k: d.get(k) for k in ("attempted_at", "outcome", "message", "latest_observation", "expected_latest", "forecast_dates", "consistent", "problems", "source_latest", "processed_latest",
-                                  "last_success_at", "last_update_at")}
+    out = {k: d.get(k) for k in ("attempted_at", "outcome", "message", "latest_observation", "expected_latest", "forecast_dates", "consistent", "problems", "source_latest", "processed_latest",
+                                 "last_success_at", "last_update_at", "source_checked_at")}
+    if out["outcome"] == "running":                                                           # written when a run starts: still running, or it died before it could write its result
+        try:
+            age = (pd.Timestamp.now(tz="UTC") - pd.Timestamp(out["attempted_at"])).total_seconds()
+        except (TypeError, ValueError):
+            age = 0
+        if age > 4 * 3600:
+            out["outcome"] = "interrupted"
+            out["message"] = "The last refresh started but never finished (the process was stopped or the computer went to sleep); the published dataset is unchanged."
+    return out
 
 
 class EnvironmentalStore:
@@ -200,19 +217,18 @@ class EnvironmentalStore:
     def freshness(self, now=None) -> dict:
         """How the newest observation compares with the one expected today (NOAA publishes a day with about a one-day lag), and what the last automatic refresh did.
         Old data are never presented as current; the actual latest date is always stated."""
-        today = pd.Timestamp(now if now is not None else pd.Timestamp.now()).normalize()      # the operator's local day
+        expected = expected_latest_day(now)
         latest = self.dates[-1]
-        expected = today - pd.Timedelta(days=EXPECTED_LAG_DAYS)
-        behind = int((today - latest).days)
+        behind = int((expected + pd.Timedelta(days=EXPECTED_LAG_DAYS) - latest).days)             # days since the observation, counted on the UTC date
         behind_expected = max(int((expected - latest).days), 0)
         status = "current" if behind_expected == 0 else "delayed" if behind_expected <= 2 else "stale"
         refresh = refresh_status()
-        failed = bool(refresh and refresh.get("outcome") in ("failed", "source_unavailable"))
+        failed = bool(refresh and refresh.get("outcome") in ("failed", "source_unavailable", "interrupted"))
         if failed and status != "current":                                                  # behind the expected day and the last attempt did not succeed: say so
             status = "refresh failed"
         d = str(latest.date())
-        msg = {"current": f"Latest observation {d} is the newest expected today (about a {EXPECTED_LAG_DAYS}-day publication lag).",
-               "delayed": f"Latest observation {d}; {expected.date()} was expected ({behind_expected} day{'s' if behind_expected != 1 else ''} behind). The newest data are not loaded yet; results describe {d}, not today.",
+        msg = {"current": f"Latest observation {d} is the newest NOAA should have published by now (each day is posted at about 13:30 UTC the next day).",
+               "delayed": f"Latest observation {d}; NOAA should have published {expected.date()} by now ({behind_expected} day{'s' if behind_expected != 1 else ''} newer than loaded). It is loaded at the next refresh; results describe {d}, not today.",
                "stale": f"Latest observation {d} is {behind} days old ({behind_expected} behind the {expected.date()} expected). These results describe that date, not today.",
                "refresh failed": f"Latest observation {d}; {expected.date()} was expected ({behind_expected} day{'s' if behind_expected != 1 else ''} behind) and the last refresh attempt did not complete. These results describe {d}, not today."}[status]
         return {"days_behind": behind, "status": status, "message": msg, "observation_date": d, "expected_date": str(expected.date()), "behind_expected": behind_expected,

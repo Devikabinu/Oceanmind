@@ -34,8 +34,8 @@ export interface EnvironmentFreshness {
   behind_expected?: number;
   lag_days?: number;
   /** Outcome of the last automatic refresh, when one has run. */
-  refresh?: { attempted_at: string; outcome: "updated" | "unchanged" | "source_unavailable" | "failed"; message: string; latest_observation: string | null; expected_latest: string | null; forecast_dates: string[] | null; consistent: boolean | null; problems: string[] | null;
-    source_latest?: string | null; processed_latest?: string | null; last_success_at?: string | null; last_update_at?: string | null } | null;
+  refresh?: { attempted_at: string; outcome: "running" | "updated" | "unchanged" | "source_unavailable" | "failed" | "interrupted"; message: string; latest_observation: string | null; expected_latest: string | null; forecast_dates: string[] | null; consistent: boolean | null; problems: string[] | null;
+    source_latest?: string | null; processed_latest?: string | null; last_success_at?: string | null; last_update_at?: string | null; source_checked_at?: string | null } | null;
 }
 
 export interface EnvironmentExtent {

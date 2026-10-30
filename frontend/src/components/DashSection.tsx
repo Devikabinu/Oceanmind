@@ -18,13 +18,13 @@ export default function DashSection({
   children: ReactNode;
 }) {
   return (
-    <section className="flex flex-col rounded-lg bg-white/70 p-4 ring-1 ring-slate-200" aria-label={title}>
+    <section className="flex min-w-0 flex-col rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 sm:p-5" aria-label={title}>
       <div className="flex items-center justify-between gap-2 border-b-2 border-lagoon/60 pb-2">
-        <h2 className="text-sm font-semibold uppercase tracking-[0.1em] text-slate-800">{title}</h2>
+        <h2 className="text-sm font-semibold uppercase tracking-[0.1em] text-tide">{title}</h2>
         {tag && <SourceTag kind={tag} />}
       </div>
-      <div className="mt-3 flex-1 space-y-3">{children}</div>
-      <Link to={to} className="mt-3 text-sm font-semibold text-tide hover:underline">
+      <div className="mt-3 flex-1 space-y-4">{children}</div>
+      <Link to={to} className="mt-4 inline-flex items-center gap-1 self-start rounded-lg border border-tide/30 px-3 py-1.5 text-sm font-semibold text-tide hover:bg-tide hover:text-white">
         {linkLabel} →
       </Link>
     </section>
@@ -36,9 +36,9 @@ export function Metric({ label, value, note, meta }: { label: ReactNode; value: 
   return (
     <div>
       <div className="text-xs font-semibold uppercase tracking-wide text-slate-600">{label}</div>
-      <div className="text-3xl font-semibold leading-tight tracking-tight text-slate-900">{value}</div>
+      <div className="text-3xl font-semibold leading-tight tracking-tight tabular-nums text-slate-900">{value}</div>
       {note && <div className="mt-0.5 text-sm text-slate-700">{note}</div>}
-      {meta && <div className="mt-0.5 text-xs text-slate-500">{meta}</div>}
+      {meta && <div className="mt-1 text-xs leading-relaxed text-slate-600">{meta}</div>}
     </div>
   );
 }

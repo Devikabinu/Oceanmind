@@ -12,6 +12,7 @@ const KIND_TONE: Record<string, string> = {
 
 /** One statement with the kind of evidence it is, so observations, predictions, associations and explanations are never read as the same thing. */
 export function Statement({ s }: { s: KindedStatement }) {
+  if (s.kind === "physical_cause") return null;
   return (
     <li className="flex flex-col gap-1 py-1 text-sm text-slate-800 sm:flex-row sm:gap-2">
       <span className={`mt-0.5 h-fit max-w-full shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide sm:max-w-[10rem] ${KIND_TONE[s.kind] ?? "bg-slate-100 text-slate-700"}`}>{s.label}</span>

@@ -19,6 +19,33 @@ import Term from "./Term";
 
 const signed = (v: number | null, d = 1) => (v == null ? "–" : `${v > 0 ? "+" : ""}${v.toFixed(d)}`);
 const km2 = (v: number) => `${Math.round(v).toLocaleString()} km²`;
+
+/** The seven forecast days of the region mean as a small line, with the normal for each day (dashed); every point is a value the forecast service returned. */
+function MiniForecast({ dates, sst, normal }: { dates: string[]; sst: (number | null)[]; normal: (number | null)[] }) {
+  const pts = sst.map((v, i) => ({ v, n: normal[i] ?? null, d: dates[i] })).filter((p): p is { v: number; n: number | null; d: string } => p.v != null);
+  if (pts.length < 2) return null;
+  const W = 300, H = 120, L = 34, R = 8, T = 10, B = 22;
+  const all = pts.flatMap((p) => (p.n != null ? [p.v, p.n] : [p.v]));
+  let lo = Math.min(...all), hi = Math.max(...all);
+  const pad = (hi - lo || 0.2) * 0.2; lo -= pad; hi += pad;
+  const x = (i: number) => L + (i / (pts.length - 1)) * (W - L - R);
+  const y = (v: number) => T + ((hi - v) / (hi - lo)) * (H - T - B);
+  const line = pts.map((p, i) => `${i ? "L" : "M"} ${x(i).toFixed(1)} ${y(p.v).toFixed(1)}`).join(" ");
+  const norm = pts.every((p) => p.n != null) ? pts.map((p, i) => `${i ? "L" : "M"} ${x(i).toFixed(1)} ${y(p.n as number).toFixed(1)}`).join(" ") : null;
+  return (
+    <div data-testid="mini-forecast">
+      <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img" aria-label={`Forecast region-mean SST, ${pts[0].d} to ${pts[pts.length - 1].d}: ${pts[0].v.toFixed(1)} to ${pts[pts.length - 1].v.toFixed(1)} °C`}>
+        {[lo + pad, hi - pad].map((t) => (<g key={t}><line x1={L} x2={W - R} y1={y(t)} y2={y(t)} stroke="#d6e4ea" strokeDasharray="3 3" /><text x={L - 4} y={y(t) + 4} textAnchor="end" fontSize="11" fill="#334155">{t.toFixed(1)}</text></g>))}
+        {norm && <path d={norm} fill="none" stroke="#64748b" strokeWidth="1.8" strokeDasharray="5 3" />}
+        <path d={line} fill="none" stroke="#2563eb" strokeWidth="2.5" strokeLinejoin="round" />
+        {pts.map((p, i) => (<circle key={p.d} cx={x(i)} cy={y(p.v)} r={3.2} fill="#2563eb"><title>{`${p.d}: ${p.v.toFixed(2)} °C`}</title></circle>))}
+        <text x={L} y={H - 6} fontSize="11" fill="#334155">{pts[0].d.slice(5)}</text>
+        <text x={W - R} y={H - 6} fontSize="11" fill="#334155" textAnchor="end">{pts[pts.length - 1].d.slice(5)}</text>
+      </svg>
+      <div className="flex gap-4 text-xs text-slate-600" aria-hidden><span className="inline-flex items-center gap-1"><span className="inline-block h-0.5 w-4 bg-blue-600" />forecast</span>{norm && <span className="inline-flex items-center gap-1"><span className="inline-block w-4 border-t-2 border-dashed border-slate-500" />normal</span>}</div>
+    </div>
+  );
+}
 const FLOW: { extra: Record<string, string>; label: string; sub: string }[] = [
   { extra: { layer: "sst" }, label: "Conditions", sub: "SST on the map" },
   { extra: { layer: "anomaly" }, label: "Anomaly", sub: "difference from normal" },
@@ -90,7 +117,7 @@ export default function PacificDashboard() {
         </ol>
       </nav>
 
-      <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <div className="@container mt-4"><div className="grid grid-cols-1 items-stretch gap-4 @2xl:grid-cols-2 @4xl:grid-cols-3">
         <DashSection title="Ocean conditions" to={`/ocean-map${mq({ layer: "anomaly" })}`} linkLabel="Show on the map" tag={gen ? "generated" : "observed"}>
           <Status isLoading={sst.isLoading || anom.isLoading} error={sst.error ?? anom.error} hasData={!!S}>
             {S && (
@@ -124,6 +151,8 @@ export default function PacificDashboard() {
                   note={`${signed(F.forecast_anomaly[F.forecast_anomaly.length - 1])} °C versus the daily climatology for ${F.target_dates[F.target_dates.length - 1]}.`}
                   meta={`Issued from ${F.issued_from} · ${F.model.name}`}
                 />
+                <MiniForecast dates={F.target_dates} sst={F.forecast_sst} normal={F.climatology_sst} />
+                <Metric label="Valid dates" value={`${F.target_dates[0].slice(5)} → ${F.target_dates[F.target_dates.length - 1].slice(5)}`} note={`${F.target_dates.length} daily steps after the ${F.issued_from} observation.`} />
               </>
             )}
           </Status>
@@ -145,7 +174,7 @@ export default function PacificDashboard() {
           </Status>
         </DashSection>
 
-        <div className="md:col-span-2 xl:col-span-3">
+        <div className="@2xl:col-span-2 @4xl:col-span-3">
           <HistoricalSst />
         </div>
 
@@ -159,7 +188,7 @@ export default function PacificDashboard() {
                       label={`Species observations in this region (last ${Math.round(exposure.data.summary.window_days / 365)} years)`}
                       value={exposure.data.summary.records.toLocaleString()}
                       note={`${exposure.data.summary.species} distinct species recorded in the ${exposure.data.region.name}, at ${exposure.data.summary.points_total.toLocaleString()} locations.`}
-                      meta={`Counted: stored OBIS observations inside this region within the window. Catalogue totals, all areas and dates: ${bio.data.n_records.toLocaleString()} observations of ${bio.data.species_with_records} species. Records are a time-spread selection, not a survey.`}
+                      meta={`Stored OBIS observations in this region and time window (a selection of records, not a survey). Whole catalogue: ${bio.data.n_records.toLocaleString()} observations of ${bio.data.species_with_records} species.`}
                     />
                   ) : (
                     <Metric label="Species observations in this region" value="Limited coverage" note="No stored biodiversity observations fall in this region and time period. That is a sampling gap, not an absence of species."
@@ -176,7 +205,7 @@ export default function PacificDashboard() {
                     meta={`${exposure.data.summary.threatened_in_heatwave} threatened or near-threatened species exposed · ${exposure.data.summary.points_high_risk} record locations in HIGH or CRITICAL risk cells · record density, not a range`}
                   />
                 )}
-                <Metric label="Conservation-sensitive species" value={String(bio.data.conservation_sensitive_with_records)} note="With a stored VU/EN/CR category from a source; other species show “Status not confirmed”." />
+                <Metric label="Conservation-sensitive species" value={String(bio.data.conservation_sensitive_with_records)} note="With a stored VU/EN/CR category." />
               </>
             )}
           </Status>
@@ -208,7 +237,7 @@ export default function PacificDashboard() {
             )}
           </Status>
         </DashSection>
-      </div>
+      </div></div>
 
       <section className="mt-8" aria-labelledby="alerts-h">
         <div className="mb-3 flex items-baseline justify-between">

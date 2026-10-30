@@ -12,7 +12,7 @@ export default function DataDatesNote() {
   const r = D.freshness.refresh;
   const when = (t?: string | null) => (t ? `${t.slice(0, 16).replace("T", " ")} UTC` : "not yet");
   const stateLabel = D.freshness.status;
-  const failedAttempt = !!r && (r.outcome === "failed" || r.outcome === "source_unavailable");
+  const failedAttempt = !!r && (r.outcome === "failed" || r.outcome === "source_unavailable" || r.outcome === "interrupted");
   /** The state is written out in words and carries its own symbol (shape), so it never relies on colour alone. */
   const TONE: Record<string, string> = {
     current: "bg-emerald-100 text-emerald-900 before:content-['●_']", delayed: "bg-amber-100 text-amber-900 before:content-['◐_']",
@@ -34,10 +34,11 @@ export default function DataDatesNote() {
         <section aria-label="Observations">
           <h2 className="text-[11px] font-semibold uppercase tracking-wide text-slate-600">Observations</h2>
           <dl className="mt-1 grid grid-cols-2 gap-x-3 gap-y-1.5">
-            <Item label="Latest source observation" id="dd-source">{r?.source_latest ?? "not confirmed by the last check"}</Item>
+            <Item label="Latest source observation (at the last check)" id="dd-source">{r?.source_latest ?? "not confirmed by the last check"}{r?.source_latest && r.source_checked_at ? <span className="block font-normal text-slate-500">checked {when(r.source_checked_at)}</span> : null}</Item>
             <Item label="Latest observation processed" id="dd-processed">{D.sst_observation.latest_available}</Item>
-            <Item label="Last successful refresh" id="dd-success">{when(r?.last_success_at)}</Item>
-            <Item label="Data state" id="dd-state"><span className={badge}>{stateLabel}</span>{failedAttempt ? " (last attempt failed)" : ""}</Item>
+            <Item label="Last successful source check" id="dd-success">{when(r?.last_success_at)}</Item>
+            <Item label="Last dataset update" id="dd-update">{when(r?.last_update_at)}</Item>
+            <Item label="Data state" id="dd-state"><span className={badge}>{stateLabel}</span>{r?.outcome === "running" ? " (refresh running)" : r?.outcome === "interrupted" ? " (last attempt interrupted)" : failedAttempt ? " (last attempt failed)" : ""}</Item>
             <Item label="Anomaly">{D.anomaly.date}</Item>
             <Item label="Marine heatwaves">{D.marine_heatwave.date ?? "not computed"}</Item>
           </dl>

@@ -127,6 +127,8 @@ export default function SstMap({
   const statusRef = useRef({ status, statusLabels });
   const originRef = useRef(lonOrigin);
   const didFit = useRef(false);
+  const boundsRef = useRef<L.LatLngBounds | null>(null);      // the extent of the data layer, to refit to when the container changes size
+  const userMoved = useRef(false);                            // once the reader has panned or zoomed, a resize keeps their view
   const [hover, setHover] = useState<string | null>(null);
 
   useEffect(() => {
@@ -189,8 +191,36 @@ export default function SstMap({
       setHover(null);
       map.scrollWheelZoom.disable();
     });
+    // The container changes size when the location report opens or closes, when the window is resized and when the layout switches between one and two columns:
+    // Leaflet must be told, and a map that the reader has not moved is refitted to its data so that it is never left cropped or zoomed from its old dimensions.
+    // only the reader's own gestures count as "moved": a drag, the wheel, a double click, a pinch or the zoom buttons (Leaflet also fires zoomstart for our own refits)
+    const markUser = () => { userMoved.current = true; };
+    const el = host.current;
+    map.on("dragstart", markUser);
+    el.addEventListener("wheel", markUser, { passive: true });
+    el.addEventListener("dblclick", markUser);
+    el.addEventListener("touchstart", (e) => { if (e.touches.length > 1) markUser(); }, { passive: true });
+    const zoomButtons = (e: MouseEvent) => { if ((e.target as HTMLElement | null)?.closest(".leaflet-control-zoom")) markUser(); };
+    el.addEventListener("click", zoomButtons);
+    let raf = 0;
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(() => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        if (!host.current || host.current.clientWidth === 0) return;
+        map.invalidateSize({ animate: false });
+        if (!userMoved.current && boundsRef.current) {
+          map.fitBounds(boundsRef.current, { padding: [4, 4], animate: false });
+        }
+      });
+    }) : null;
+    ro?.observe(host.current);
     mapRef.current = map;
     return () => {
+      ro?.disconnect();
+      cancelAnimationFrame(raf);
+      el.removeEventListener("wheel", markUser);
+      el.removeEventListener("dblclick", markUser);
+      el.removeEventListener("click", zoomButtons);
       map.remove();
       mapRef.current = null;
       overlayRef.current = null;
@@ -202,6 +232,8 @@ export default function SstMap({
       markerGroup.current = null;
       footRef.current = null;
       markerRef.current = null;
+      boundsRef.current = null;
+      userMoved.current = false;
     };
   }, [initialView]);
 
@@ -258,6 +290,7 @@ export default function SstMap({
       [layer.lat[H - 1] + dLat / 2, layer.lon[W - 1] + dLon / 2],
     );
     const url = canvas.toDataURL();
+    boundsRef.current = bounds;
     if (overlayRef.current) {
       overlayRef.current.setUrl(url);
       overlayRef.current.setBounds(bounds);

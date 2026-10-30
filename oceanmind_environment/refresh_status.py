@@ -14,7 +14,8 @@ import pandas as pd
 from .schedule import FORECAST_HORIZONS, forecast_window
 
 STATUS_FILE = Path("data") / "refresh_status.json"
-OUTCOMES = ("updated", "unchanged", "source_unavailable", "failed")
+OUTCOMES = ("running", "updated", "unchanged", "source_unavailable", "failed")
+RUNNING_MAX_AGE_S = 4 * 3600            # a run that has not finished after this long (the lock limit of the scheduler script) is reported as interrupted
 
 
 def write_status(root: Path, **fields) -> dict:
@@ -26,6 +27,7 @@ def write_status(root: Path, **fields) -> dict:
     ok = fields.get("outcome") in ("updated", "unchanged") and fields.get("consistent", True)
     status.setdefault("last_success_at", now if ok else before.get("last_success_at"))
     status.setdefault("last_update_at", now if fields.get("outcome") == "updated" else before.get("last_update_at"))
+    status.setdefault("source_checked_at", now if fields.get("source_latest") else before.get("source_checked_at"))          # when NOAA was last actually asked and answered
     f = Path(root) / STATUS_FILE
     f.parent.mkdir(parents=True, exist_ok=True)
     tmp = f.with_suffix(".tmp")

@@ -286,7 +286,7 @@ def sync(cfg_dict: dict, force_tail: bool = True) -> dict:
         flags.append(np.full(da.sizes["time"], product == "preliminary"))
     covered = pd.DatetimeIndex(np.concatenate(times)) if times else pd.DatetimeIndex([])
     # days after the newest ERDDAP day are tried in the NCEI archive too, which can publish the preliminary file before the aggregation lists it
-    gap_days = pd.date_range(start, max(nrt_last, expected_latest())).difference(covered)
+    gap_days = pd.date_range(start, max(nrt_last, expected_latest() + pd.Timedelta(days=1))).difference(covered)
     lat_vals = LAT_START + np.arange(int((lat_end - LAT_START) // 1) + 1)
     lon_vals = np.round(LON_START + np.arange(int(float(d["lon_max"]) - LON_START) + 1), 4)
     filled, still_missing = [], []
@@ -435,7 +435,7 @@ def extend_from_ncei(cfg_dict: dict, reason: str = "") -> dict:
     lat_vals, lon_vals = old.lat.values, old.lon.values
     cache.mkdir(parents=True, exist_ok=True)
     new, flags = [], []
-    for day in pd.date_range(last + pd.Timedelta(days=1), expected_latest()):
+    for day in pd.date_range(last + pd.Timedelta(days=1), expected_latest() + pd.Timedelta(days=1)):
         got = _ncei_day(day, lat_vals, lon_vals, cache)
         if got is None:
             break

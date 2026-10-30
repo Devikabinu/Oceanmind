@@ -34,18 +34,35 @@ const renderPage = () => render(<MemoryRouter><ModelBenchmark /></MemoryRouter>)
 beforeEach(() => vi.clearAllMocks());
 
 describe("ModelBenchmark page", () => {
-  it("shows the stored numbers for every model and both baselines", async () => {
+  it("shows the stored numbers for the three benchmarked architectures only", async () => {
     api.getBenchmark.mockResolvedValue(BENCH);
     renderPage();
     const table = await screen.findByRole("table");
     const rows = within(table).getAllByRole("row");
-    expect(rows).toHaveLength(6); // header + 3 models + persistence + climatology
+    expect(rows).toHaveLength(4); // header + CNN-only + LSTM-only + Hybrid ConvLSTM
     const hybrid = rows.find((r) => within(r).queryByText("Hybrid ConvLSTM"))!;
     expect(within(hybrid).getByText((127239).toLocaleString())).toBeInTheDocument();
     expect(within(hybrid).getByText("0.2000 ± 0.0100")).toBeInTheDocument();
-    const persistence = rows.find((r) => within(r).queryByText("Persistence"))!;
-    expect(within(persistence).getByText("0.5000")).toBeInTheDocument();
-    expect(screen.getByText(/test period 2025-12-10 to 2026-04-30/)).toBeInTheDocument();
+    expect(screen.getAllByText(/test period 2025-12-10 to 2026-04-30/).length).toBeGreaterThan(0);
+  });
+
+  it("shows no persistence or climatology row, card or legend entry", async () => {
+    api.getBenchmark.mockResolvedValue(BENCH);
+    const { container } = renderPage();
+    await screen.findByRole("table");
+    expect(container.textContent).not.toMatch(/persistence|climatology/i);
+  });
+
+  it("summarises each model in a card and marks the lowest RMSE from the stored values", async () => {
+    api.getBenchmark.mockResolvedValue(BENCH);
+    renderPage();
+    const list = await screen.findByRole("list", { name: "Benchmarked models" });
+    const cards = within(list).getAllByRole("listitem");
+    expect(cards).toHaveLength(3);
+    const hybrid = cards.find((c) => c.getAttribute("data-model") === "hybrid_convlstm")!;
+    expect(within(hybrid).getByText("Lowest RMSE")).toBeInTheDocument();
+    expect(within(hybrid).getByText("0.200")).toBeInTheDocument();
+    expect(within(list).getAllByText("Lowest RMSE")).toHaveLength(1);
   });
 
   it("shows the sample forecast map", async () => {
